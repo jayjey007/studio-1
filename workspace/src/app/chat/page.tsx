@@ -15,7 +15,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, User, Smile, Paperclip, X } from "lucide-react";
 
-import { scrambleMessage } from "@/ai/flows/scramble-message-llm";
 import { cn } from "@/lib/utils";
 
 const SCRAMBLE_METHOD = "Letter substitution (A=B, B=C, etc.)";
@@ -169,17 +168,12 @@ export default function ChatPage() {
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      const scrambleResult = await scrambleMessage({
-        message: trimmedInput,
-        method: "Remove emojis",
-      });
-
-      // Temporarily add message to UI with original text for immediate feedback
+      // Temporarily add message to UI for immediate feedback
       const tempId = Date.now().toString();
       const tempMessage: Message = {
         id: tempId,
         originalText: trimmedInput,
-        scrambledText: scrambleResult.scrambledMessage,
+        scrambledText: trimmedInput, // Use original text for now
         sender: currentUser,
         createdAt: new Date(),
         ...(imageUrl && { imageUrl }),
@@ -189,7 +183,7 @@ export default function ChatPage() {
 
       // Only store the scrambled message in Firestore
       const messageToStore: Omit<Message, 'id' | 'originalText'> = {
-        scrambledText: scrambleResult.scrambledMessage,
+        scrambledText: trimmedInput,
         sender: currentUser,
         createdAt: serverTimestamp(),
         ...(imageUrl && { imageUrl }),

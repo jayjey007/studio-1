@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 const SCRAMBLE_METHOD = "Letter substitution (A=B, B=C, etc.)";
 
-const EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '❤️', '🎉', '🔥', '🚀', '💯', '🙏', '🤷‍♂️', '🤧'];
+const EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '❤️', '🎉', '🔥', '🚀', '💯', '🙏', '🤷‍♂️', '🤧', '🥰'];
 
 interface Message {
   id: string;

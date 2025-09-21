@@ -16,7 +16,8 @@ const SCRAMBLE_METHOD = "Letter substitution (A=B, B=C, etc.)";
 
 interface Message {
   id: number;
-  text: string;
+  originalText: string;
+  scrambledText: string;
   sender: "user" | "agent";
 }
 
@@ -24,6 +25,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isScrambling, setIsScrambling] = useState(false);
+  const [showScrambled, setShowScrambled] = useState(true);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -37,28 +39,43 @@ export default function Home() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    const trimmedInput = input.trim();
+    if (!trimmedInput) return;
 
-    const userMessage: Message = {
-      id: Date.now(),
-      text: input,
-      sender: "user",
-    };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
+    if (trimmedInput.toLowerCase() === 'toggle') {
+      setShowScrambled(prev => !prev);
+      setInput('');
+      return;
+    }
+
     setIsScrambling(true);
+    setInput("");
 
     try {
-      const result = await scrambleMessage({
-        message: input,
+      // Scramble the user's message first
+      const userScrambleResult = await scrambleMessage({
+        message: trimmedInput,
         method: SCRAMBLE_METHOD,
+      });
+      const userMessage: Message = {
+        id: Date.now(),
+        originalText: trimmedInput,
+        scrambledText: userScrambleResult.scrambledMessage,
+        sender: "user",
+      };
+      // For the agent's reply, we'll use the user's scrambled message as input
+      const agentScrambleResult = await scrambleMessage({
+          message: userScrambleResult.scrambledMessage,
+          method: SCRAMBLE_METHOD,
       });
       const agentMessage: Message = {
         id: Date.now() + 1,
-        text: result.scrambledMessage,
+        // The agent's "original" text is the user's scrambled text
+        originalText: userScrambleResult.scrambledMessage,
+        scrambledText: agentScrambleResult.scrambledMessage,
         sender: "agent",
       };
-      setMessages((prev) => [...prev, agentMessage]);
+      setMessages((prev) => [...prev, userMessage, agentMessage]);
     } catch (error) {
       console.error("Error scrambling message:", error);
       toast({
@@ -109,7 +126,7 @@ export default function Home() {
                         : "bg-muted"
                     )}
                   >
-                    <p>{message.text}</p>
+                    <p>{showScrambled ? message.scrambledText : message.originalText}</p>
                   </div>
                    {message.sender === "user" && (
                     <Avatar className="h-8 w-8">

@@ -15,10 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, User, Smile, Paperclip, X } from "lucide-react";
 
-import { unscrambleMessage } from "@/ai/flows/unscramble-message-llm";
 import { cn } from "@/lib/utils";
-
-const SCRAMBLE_METHOD = "Letter substitution (A=B, B=C, etc.)";
 
 const EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '❤️', '🎉', '🔥', '🚀', '💯', '🙏', '🤷‍♂️', '🤧', '🥰'];
 
@@ -43,6 +40,22 @@ const scrambleMessageLocal = (message: string): string => {
         return String.fromCharCode(((charCode - 97 + 1) % 26) + 97);
       } else if (char >= 'A' && char <= 'Z') {
         return String.fromCharCode(((charCode - 65 + 1) % 26) + 65);
+      }
+      return char;
+    })
+    .join('');
+};
+
+const unscrambleMessageLocal = (scrambledMessage: string): string => {
+  if (!scrambledMessage) return "";
+  return scrambledMessage
+    .split('')
+    .map(char => {
+      const charCode = char.charCodeAt(0);
+      if (char >= 'a' && char <= 'z') {
+        return String.fromCharCode(((charCode - 97 - 1 + 26) % 26) + 97);
+      } else if (char >= 'A' && char <= 'Z') {
+        return String.fromCharCode(((charCode - 65 - 1 + 26) % 26) + 65);
       }
       return char;
     })
@@ -174,27 +187,14 @@ export default function ChatPage() {
     if (!newShowScrambled) {
       setIsUnscrambling(true);
       try {
-        const unscramblePromises = messages.map(async (message) => {
+        const newUnscrambledMessages: Record<string, string> = {};
+        for (const message of messages) {
           if (!unscrambledMessages[message.id] && message.scrambledText) {
-            const result = await unscrambleMessage({
-              scrambledMessage: message.scrambledText,
-              method: SCRAMBLE_METHOD,
-            });
-            return { id: message.id, text: result.unscrambledMessage };
+            const unscrambledText = unscrambleMessageLocal(message.scrambledText);
+            newUnscrambledMessages[message.id] = unscrambledText;
           }
-          return null;
-        });
-
-        const results = await Promise.all(unscramblePromises);
-        setUnscrambledMessages(prev => {
-          const newUnscrambled = { ...prev };
-          results.forEach(result => {
-            if (result) {
-              newUnscrambled[result.id] = result.text;
-            }
-          });
-          return newUnscrambled;
-        });
+        }
+        setUnscrambledMessages(prev => ({ ...prev, ...newUnscrambledMessages }));
       } catch (error) {
         console.error("Error unscrambling messages:", error);
         toast({

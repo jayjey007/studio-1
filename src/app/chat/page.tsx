@@ -93,12 +93,15 @@ export default function ChatPage() {
     };
     
     const handleFocus = () => {
-      // When the window is re-focused, we can safely assume the file picker is closed.
-      isPickingFile.current = false;
+      setTimeout(() => {
+        if (!isPickingFile.current) {
+          return;
+        }
+        isPickingFile.current = false;
+      }, 200)
     }
 
     const handleBlur = () => {
-        // If we're not picking a file, then a blur event should trigger a logout.
         if (!isPickingFile.current) {
           handleLogout();
         }
@@ -127,9 +130,6 @@ export default function ChatPage() {
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
-    // After the file is selected, we reset the flag.
-    // The 'focus' event listener on the window will also handle this.
-    isPickingFile.current = false; 
   };
 
   const handleAttachClick = () => {
@@ -170,7 +170,7 @@ export default function ChatPage() {
 
       const scrambleResult = await scrambleMessage({
         message: trimmedInput,
-        method: SCRAMBLE_METHOD,
+        method: "Remove emojis",
       });
 
       // Temporarily add message to UI with original text for immediate feedback
@@ -202,11 +202,18 @@ export default function ChatPage() {
 
       removeImage();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending message:", error);
+      let description = "Could not send message. Please try again.";
+      if (error.code === 'storage/unauthorized') {
+        description = "You don't have permission to upload images. Please check your Firebase Storage rules."
+      } else if (error.code === 'storage/retry-limit-exceeded') {
+        description = "Network error: Could not upload image. Please check your connection and Firebase Storage rules."
+      }
+
       toast({
         title: "Error",
-        description: "Could not send message. Please try again.",
+        description: description,
         variant: "destructive",
       });
     } finally {
@@ -349,4 +356,5 @@ export default function ChatPage() {
       </footer>
     </div>
   );
-}
+
+    

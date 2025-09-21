@@ -31,7 +31,7 @@ export default function LoginPage() {
         sessionStorage.setItem("currentUser", user);
         router.push("/chat");
       } else {
-        window.location.href = "https://news.google.com";
+        router.push("https://news.google.com");
       }
       setIsLoading(false);
     }, 500);

@@ -31,12 +31,7 @@ export default function LoginPage() {
         sessionStorage.setItem("currentUser", user);
         router.push("/chat");
       } else {
-        toast({
-          title: "Incorrect Passcode",
-          description: "Please try again.",
-          variant: "destructive",
-        });
-        setPasscode("");
+        window.location.href = "https://news.google.com";
       }
       setIsLoading(false);
     }, 500);

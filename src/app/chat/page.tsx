@@ -210,8 +210,12 @@ export default function ChatPage() {
 
 
   const handleSend = async () => {
+    console.log("handleSend triggered");
     const trimmedInput = input.trim();
-    if ((!trimmedInput && !imageFile) || !currentUser) return;
+    if ((!trimmedInput && !imageFile) || !currentUser) {
+      console.log("handleSend aborted: no input, no image, or no user.");
+      return;
+    }
 
     if (trimmedInput.toLowerCase() === 'toggle' && !imageFile) {
       handleToggleScrambled();
@@ -221,11 +225,15 @@ export default function ChatPage() {
     }
     
     setIsSending(true);
+    console.log("Sending state set to true");
 
     // Store current state before clearing it
     const messageToSend = trimmedInput;
     const imageFileToSend = imageFile;
     
+    console.log("Message to send:", messageToSend);
+    console.log("Image file to send:", imageFileToSend);
+
     // Immediately clear inputs
     setInput("");
     removeImage();
@@ -235,13 +243,17 @@ export default function ChatPage() {
 
     try {
       if (imageFileToSend) {
+        console.log("Image file detected, starting upload...");
         const storageRef = ref(storage, `chat_images/${Date.now()}_${imageFileToSend.name}`);
         await uploadBytes(storageRef, imageFileToSend);
         imageUrl = await getDownloadURL(storageRef);
+        console.log("Image uploaded successfully. URL:", imageUrl);
       }
 
       if (messageToSend) {
+        console.log("Message text detected, scrambling...");
         scrambledMessage = scrambleMessageLocal(messageToSend);
+        console.log("Scrambled message:", scrambledMessage);
       }
 
       const messageToStore: Omit<Message, 'id'> = {
@@ -251,10 +263,12 @@ export default function ChatPage() {
         ...(imageUrl && { imageUrl }),
       };
 
+      console.log("Preparing to add document to Firestore:", messageToStore);
       await addDoc(collection(db, "messages"), messageToStore);
+      console.log("Document added to Firestore successfully.");
       
     } catch (error: any) {
-      console.error("Error sending message:", error);
+      console.error("ERROR SENDING MESSAGE:", error);
       let description = "Could not send message. Please try again.";
        if (error.code === 'storage/unauthorized') {
         description = "You don't have permission to upload images. Please check your Firebase Storage rules."
@@ -272,6 +286,7 @@ export default function ChatPage() {
       setInput(messageToSend);
     } finally {
       setIsSending(false);
+      console.log("Sending state set to false");
       textareaRef.current?.focus();
     }
   };

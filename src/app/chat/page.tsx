@@ -15,7 +15,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, User, Smile, Paperclip, X } from "lucide-react";
 
-import { scrambleMessage } from "@/ai/flows/scramble-message-llm";
 import { unscrambleMessage } from "@/ai/flows/unscramble-message-llm";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +29,25 @@ interface Message {
   createdAt: any;
   imageUrl?: string;
 }
+
+const scrambleMessageLocal = (message: string): string => {
+  if (!message) return "";
+  const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;
+  const messageWithoutEmojis = message.replace(emojiRegex, '');
+
+  return messageWithoutEmojis
+    .split('')
+    .map(char => {
+      const charCode = char.charCodeAt(0);
+      if (char >= 'a' && char <= 'z') {
+        return String.fromCharCode(((charCode - 97 + 1) % 26) + 97);
+      } else if (char >= 'A' && char <= 'Z') {
+        return String.fromCharCode(((charCode - 65 + 1) % 26) + 65);
+      }
+      return char;
+    })
+    .join('');
+};
 
 export default function ChatPage() {
   const router = useRouter();
@@ -215,13 +233,10 @@ export default function ChatPage() {
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      const scrambleResult = await scrambleMessage({
-        message: trimmedInput,
-        method: SCRAMBLE_METHOD,
-      });
+      const scrambledMessage = scrambleMessageLocal(trimmedInput);
 
       const messageToStore: Omit<Message, 'id'> = {
-        scrambledText: scrambleResult.scrambledMessage,
+        scrambledText: scrambledMessage,
         sender: currentUser,
         createdAt: serverTimestamp(),
         ...(imageUrl && { imageUrl }),

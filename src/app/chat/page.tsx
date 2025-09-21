@@ -9,7 +9,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
@@ -42,7 +42,7 @@ export default function ChatPage() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isPickingFile = useRef(false);
 
@@ -124,7 +124,7 @@ export default function ChatPage() {
 
   const handleEmojiClick = (emoji: string) => {
     setInput(prev => prev + emoji);
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,7 +155,7 @@ export default function ChatPage() {
     if (trimmedInput.toLowerCase() === 'toggle' && !imageFile) {
       setShowScrambled(prev => !prev);
       setInput('');
-      inputRef.current?.focus();
+      textareaRef.current?.focus();
       return;
     }
 
@@ -176,7 +176,6 @@ export default function ChatPage() {
         method: "Remove emojis",
       });
 
-      // Temporarily add message to UI with original text for immediate feedback
       const tempId = Date.now().toString();
       const tempMessage: Message = {
         id: tempId,
@@ -189,7 +188,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, tempMessage]);
 
 
-      // Only store the scrambled message in Firestore
       const messageToStore: Omit<Message, 'id' | 'originalText'> = {
         scrambledText: scrambleResult.scrambledMessage,
         sender: currentUser,
@@ -199,8 +197,6 @@ export default function ChatPage() {
 
       await addDoc(collection(db, "messages"), messageToStore);
       
-      // Remove the temporary message once the DB call is complete
-      // The onSnapshot listener will add the persisted message from Firestore
       setMessages(prev => prev.filter(m => m.id !== tempId));
 
       removeImage();
@@ -221,12 +217,21 @@ export default function ChatPage() {
       });
     } finally {
       setIsSending(false);
-      inputRef.current?.focus();
+      textareaRef.current?.focus();
     }
   };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isSending) {
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  };
+  
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       handleSend();
     }
   };
@@ -272,7 +277,7 @@ export default function ChatPage() {
                         className="rounded-xl mb-2 object-cover" 
                       />
                     )}
-                    <p>{showScrambled || !message.originalText ? message.scrambledText : message.originalText}</p>
+                    <p className="whitespace-pre-wrap">{showScrambled || !message.originalText ? message.scrambledText : message.originalText}</p>
                   </div>
                    {message.sender === currentUser && (
                     <Avatar className="h-8 w-8">
@@ -302,16 +307,17 @@ export default function ChatPage() {
           </div>
         )}
         <div className="relative flex items-center gap-2 p-2">
-          <Input
-            ref={inputRef}
+          <Textarea
+            ref={textareaRef}
             placeholder="Type your message..."
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyPress}
             disabled={isSending}
-            className="rounded-full h-10 pr-28 pl-10 bg-muted"
+            className="rounded-2xl pr-28 pl-10 bg-muted resize-none min-h-[40px] max-h-40 overflow-y-auto"
+            rows={1}
           />
-          <div className="absolute left-4 flex items-center">
+          <div className="absolute left-4 top-4 flex items-center">
              <input
               type="file"
               ref={fileInputRef}
@@ -324,7 +330,7 @@ export default function ChatPage() {
                 <span className="sr-only">Attach Image</span>
             </Button>
           </div>
-          <div className="absolute right-4 flex items-center gap-1">
+          <div className="absolute right-4 top-4 flex items-center gap-1">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -363,4 +369,5 @@ export default function ChatPage() {
       </footer>
     </div>
   );
-}
+
+    

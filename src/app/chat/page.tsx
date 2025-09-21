@@ -91,15 +91,34 @@ export default function ChatPage() {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         handleLogout();
+        setShowScrambled(true);
       }
     };
+    
+    const handleFocus = () => {
+       if (isPickingFile.current) {
+        isPickingFile.current = false;
+       }
+    }
 
+    const handleBlur = () => {
+        // A brief timeout helps distinguish between a true blur event 
+        // and the momentary focus loss from opening the file picker.
+        setTimeout(() => {
+            if (!document.hasFocus() && !isPickingFile.current) {
+                 handleLogout();
+            }
+        }, 300);
+    }
+    
     window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleLogout);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleLogout);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [router]);
 
@@ -114,7 +133,7 @@ export default function ChatPage() {
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
-    isPickingFile.current = false;
+    // The 'focus' event will handle setting isPickingFile back to false
   };
 
   const handleAttachClick = () => {

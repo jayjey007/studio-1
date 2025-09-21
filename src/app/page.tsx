@@ -1,56 +1,69 @@
+
 "use client";
 
-import { useState } from "react";
-
+import { useState, useRef, useEffect } from "react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Loader2, Shuffle } from "lucide-react";
+import { Bot, Loader2, Send, User } from "lucide-react";
 
 import { scrambleMessage } from "@/ai/flows/scramble-message-llm";
+import { cn } from "@/lib/utils";
 
 const SCRAMBLE_METHOD = "Letter substitution (A=B, B=C, etc.)";
 
+interface Message {
+  id: number;
+  text: string;
+  sender: "user" | "agent";
+}
+
 export default function Home() {
-  const [message, setMessage] = useState("");
-  const [scrambledMessage, setScrambledMessage] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
   const [isScrambling, setIsScrambling] = useState(false);
-  const [outputKey, setOutputKey] = useState(0);
-
   const { toast } = useToast();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  const handleScramble = async () => {
-    if (!message) {
-      toast({
-        title: "Input needed",
-        description: "Please enter a message to scramble.",
-        variant: "destructive",
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTo({
+        top: scrollAreaRef.current.scrollHeight,
+        behavior: 'smooth',
       });
-      return;
     }
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+
+    const userMessage: Message = {
+      id: Date.now(),
+      text: input,
+      sender: "user",
+    };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
     setIsScrambling(true);
-    setScrambledMessage("");
+
     try {
       const result = await scrambleMessage({
-        message,
+        message: input,
         method: SCRAMBLE_METHOD,
       });
-      setScrambledMessage(result.scrambledMessage);
-      setOutputKey((k) => k + 1);
+      const agentMessage: Message = {
+        id: Date.now() + 1,
+        text: result.scrambledMessage,
+        sender: "agent",
+      };
+      setMessages((prev) => [...prev, agentMessage]);
     } catch (error) {
       console.error("Error scrambling message:", error);
       toast({
         title: "Error",
-        description: "Could not scramble the message. Please try again.",
+        description: "Could not get a response. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -58,88 +71,93 @@ export default function Home() {
     }
   };
 
-  const handleCopy = () => {
-    if (scrambledMessage) {
-      navigator.clipboard.writeText(scrambledMessage);
-      toast({
-        title: "Copied to clipboard!",
-      });
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !isScrambling) {
+      handleSend();
     }
   };
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6 md:p-8">
-      <Card className="w-full max-w-2xl shadow-2xl rounded-2xl">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-headline tracking-tight sm:text-4xl">
-            CipherChat
-          </CardTitle>
-          <CardDescription className="pt-2">
-            Scramble your messages in fun and creative ways using AI.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6">
-          <div className="grid gap-2">
-            <Label htmlFor="message" className="font-semibold">
-              Your Message
-            </Label>
-            <Textarea
-              id="message"
-              placeholder="Type your secret message here..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
-          <Button
-            onClick={handleScramble}
-            disabled={isScrambling || !message}
-            className="w-full"
-            size="lg"
-          >
-            {isScrambling ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Shuffle className="mr-2 h-4 w-4" />
-            )}
-            <span>Scramble Message</span>
-          </Button>
-          {scrambledMessage && (
-            <div
-              key={outputKey}
-              className="grid gap-2 animate-in fade-in-0 duration-700"
-            >
-              <Label htmlFor="scrambled-message" className="font-semibold">
-                Scrambled Message
-              </Label>
-              <div className="relative">
-                <Textarea
-                  id="scrambled-message"
-                  value={scrambledMessage}
-                  readOnly
-                  rows={4}
-                  className="pr-12 resize-none bg-muted"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-2 right-2 h-8 w-8 text-muted-foreground hover:text-foreground"
-                  onClick={handleCopy}
-                  aria-label="Copy message"
+    <div className="flex h-screen w-full flex-col">
+      <header className="flex h-16 items-center justify-center border-b bg-card px-4">
+        <h1 className="text-xl font-bold">AgentChat</h1>
+      </header>
+      <main className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full" ref={scrollAreaRef}>
+          <div className="p-4 md:p-6">
+            <div className="flex flex-col gap-4">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "flex items-start gap-3",
+                    message.sender === "user" && "justify-end"
+                  )}
                 >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
+                  {message.sender === "agent" && (
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        <Bot className="h-5 w-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div
+                    className={cn(
+                      "max-w-[75%] rounded-lg p-3 text-sm",
+                      message.sender === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    )}
+                  >
+                    <p>{message.text}</p>
+                  </div>
+                   {message.sender === "user" && (
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        <User className="h-5 w-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
+              ))}
+              {isScrambling && (
+                 <div className="flex items-start gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        <Bot className="h-5 w-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="bg-muted rounded-lg p-3 text-sm flex items-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                </div>
+              )}
             </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-xs text-muted-foreground">
-            Powered by Genkit AI. Results may vary.
-          </p>
-        </CardFooter>
-      </Card>
-    </main>
+          </div>
+        </ScrollArea>
+      </main>
+      <footer className="border-t bg-card p-4">
+        <div className="relative">
+          <Input
+            placeholder="Type your message..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            disabled={isScrambling}
+            className="pr-12"
+          />
+          <Button
+            type="submit"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+            onClick={handleSend}
+            disabled={isScrambling || !input.trim()}
+          >
+            {isScrambling ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
+            <span className="sr-only">Send</span>
+          </Button>
+        </div>
+      </footer>
+    </div>
   );
 }

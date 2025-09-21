@@ -9,13 +9,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, User } from "lucide-react";
+import { Loader2, Send, User, Smile } from "lucide-react";
 
 import { scrambleMessage } from "@/ai/flows/scramble-message-llm";
 import { cn } from "@/lib/utils";
 
 const SCRAMBLE_METHOD = "Letter substitution (A=B, B=C, etc.)";
+
+const EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '❤️', '🎉', '🔥', '🚀', '💯', '🙏', '🤷‍♂️'];
 
 interface Message {
   id: string;
@@ -87,6 +90,11 @@ export default function ChatPage() {
       window.removeEventListener('blur', handleBlur);
     };
   }, []);
+
+  const handleEmojiClick = (emoji: string) => {
+    setInput(prev => prev + emoji);
+    inputRef.current?.focus();
+  };
 
   const handleSend = async () => {
     const trimmedInput = input.trim();
@@ -182,7 +190,7 @@ export default function ChatPage() {
         </ScrollArea>
       </main>
       <footer className="border-t bg-card p-4">
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
           <Input
             ref={inputRef}
             placeholder="Type your message..."
@@ -192,10 +200,33 @@ export default function ChatPage() {
             disabled={isSending}
             className="pr-12"
           />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <Smile className="h-4 w-4" />
+                <span className="sr-only">Add Emoji</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2">
+              <div className="grid grid-cols-6 gap-1">
+                {EMOJIS.map((emoji) => (
+                  <Button
+                    key={emoji}
+                    variant="ghost"
+                    size="icon"
+                    className="text-xl"
+                    onClick={() => handleEmojiClick(emoji)}
+                  >
+                    {emoji}
+                  </Button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
           <Button
             type="submit"
             size="icon"
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+            className="h-8 w-8 shrink-0"
             onClick={handleSend}
             disabled={isSending || !input.trim()}
           >

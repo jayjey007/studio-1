@@ -34,6 +34,7 @@ export default function ChatPage() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem("isAuthenticated");
@@ -102,6 +103,7 @@ export default function ChatPage() {
       });
     } finally {
       setIsSending(false);
+      inputRef.current?.focus();
     }
   };
 
@@ -161,6 +163,7 @@ export default function ChatPage() {
       <footer className="border-t bg-card p-4">
         <div className="relative">
           <Input
+            ref={inputRef}
             placeholder="Type your message..."
             value={input}
             onChange={(e) => setInput(e.target.value)}

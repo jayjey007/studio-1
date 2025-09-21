@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "firebase/firestore";
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, User, Smile, Paperclip, X } from "lucide-react";
 
 import { scrambleMessage } from "@/ai/flows/scramble-message-llm";
+import { unscrambleMessage } from "@/ai/flows/unscramble-message-llm";
 import { cn } from "@/lib/utils";
 
 const SCRAMBLE_METHOD = "Letter substitution (A=B, B=C, etc.)";
@@ -24,7 +25,6 @@ const EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '❤️', '🎉', '🔥'
 
 interface Message {
   id: string;
-  originalText?: string; // Original text is now optional and only for client-side display
   scrambledText: string;
   sender: string;
   createdAt: any;
@@ -34,10 +34,12 @@ interface Message {
 export default function ChatPage() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [unscrambledMessages, setUnscrambledMessages] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [isUnscrambling, setIsUnscrambling] = useState(false);
   const [showScrambled, setShowScrambled] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
@@ -79,7 +81,7 @@ export default function ChatPage() {
         });
       }
     }
-  }, [messages]);
+  }, [messages, unscrambledMessages]);
 
   useEffect(() => {
     const handleLogout = () => {
@@ -148,12 +150,54 @@ export default function ChatPage() {
     }
   };
 
+  const handleToggleScrambled = async () => {
+    const newShowScrambled = !showScrambled;
+    setShowScrambled(newShowScrambled);
+
+    if (!newShowScrambled) {
+      setIsUnscrambling(true);
+      try {
+        const unscramblePromises = messages.map(async (message) => {
+          if (!unscrambledMessages[message.id] && message.scrambledText) {
+            const result = await unscrambleMessage({
+              scrambledMessage: message.scrambledText,
+              method: SCRAMBLE_METHOD,
+            });
+            return { id: message.id, text: result.unscrambledMessage };
+          }
+          return null;
+        });
+
+        const results = await Promise.all(unscramblePromises);
+        setUnscrambledMessages(prev => {
+          const newUnscrambled = { ...prev };
+          results.forEach(result => {
+            if (result) {
+              newUnscrambled[result.id] = result.text;
+            }
+          });
+          return newUnscrambled;
+        });
+      } catch (error) {
+        console.error("Error unscrambling messages:", error);
+        toast({
+          title: "Error",
+          description: "Could not unscramble messages.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUnscrambling(false);
+      }
+    }
+  };
+
+
   const handleSend = async () => {
     const trimmedInput = input.trim();
     if ((!trimmedInput && !imageFile) || !currentUser) return;
 
     if (trimmedInput.toLowerCase() === 'toggle' && !imageFile) {
-      setShowScrambled(prev => !prev);
+      handleToggleScrambled();
       setInput('');
       textareaRef.current?.focus();
       return;
@@ -173,22 +217,10 @@ export default function ChatPage() {
 
       const scrambleResult = await scrambleMessage({
         message: trimmedInput,
-        method: "Remove emojis",
+        method: SCRAMBLE_METHOD,
       });
 
-      const tempId = Date.now().toString();
-      const tempMessage: Message = {
-        id: tempId,
-        originalText: trimmedInput,
-        scrambledText: scrambleResult.scrambledMessage,
-        sender: currentUser,
-        createdAt: new Date(),
-        ...(imageUrl && { imageUrl }),
-      };
-      setMessages(prev => [...prev, tempMessage]);
-
-
-      const messageToStore: Omit<Message, 'id' | 'originalText'> = {
+      const messageToStore: Omit<Message, 'id'> = {
         scrambledText: scrambleResult.scrambledMessage,
         sender: currentUser,
         createdAt: serverTimestamp(),
@@ -197,8 +229,6 @@ export default function ChatPage() {
 
       await addDoc(collection(db, "messages"), messageToStore);
       
-      setMessages(prev => prev.filter(m => m.id !== tempId));
-
       removeImage();
 
     } catch (error: any) {
@@ -234,6 +264,13 @@ export default function ChatPage() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const getMessageContent = (message: Message) => {
+    if (showScrambled) {
+      return message.scrambledText;
+    }
+    return unscrambledMessages[message.id] || "Unscrambling...";
   };
 
   return (
@@ -277,7 +314,7 @@ export default function ChatPage() {
                         className="rounded-xl mb-2 object-cover" 
                       />
                     )}
-                    <p className="whitespace-pre-wrap">{showScrambled || !message.originalText ? message.scrambledText : message.originalText}</p>
+                    <p className="whitespace-pre-wrap">{getMessageContent(message)}</p>
                   </div>
                    {message.sender === currentUser && (
                     <Avatar className="h-8 w-8">
@@ -288,6 +325,11 @@ export default function ChatPage() {
                   )}
                 </div>
               ))}
+               {(isUnscrambling) && (
+                <div className="flex justify-center items-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
             </div>
           </div>
         </ScrollArea>
@@ -369,5 +411,4 @@ export default function ChatPage() {
       </footer>
     </div>
   );
-
-    
+}

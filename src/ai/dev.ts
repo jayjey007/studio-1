@@ -3,3 +3,4 @@ config();
 
 import '@/ai/flows/scramble-message-llm.ts';
 import '@/ai/flows/suggest-scramble-methods.ts';
+import '@/ai/flows/unscramble-message-llm.ts';

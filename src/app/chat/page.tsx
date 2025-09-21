@@ -224,6 +224,7 @@ export default function ChatPage() {
     setInput("");
     
     let imageUrl: string | undefined = undefined;
+    let scrambledMessage = "";
 
     try {
       if (imageFile) {
@@ -232,7 +233,9 @@ export default function ChatPage() {
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      const scrambledMessage = scrambleMessageLocal(trimmedInput);
+      if (trimmedInput) {
+        scrambledMessage = scrambleMessageLocal(trimmedInput);
+      }
 
       const messageToStore: Omit<Message, 'id'> = {
         scrambledText: scrambledMessage,
@@ -423,5 +426,4 @@ export default function ChatPage() {
       </footer>
     </div>
   );
-
-    
+}

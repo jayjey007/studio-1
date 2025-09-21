@@ -82,14 +82,17 @@ export default function ChatPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        router.push("/");
-      } else {
+      if (user) {
         const storedUser = sessionStorage.getItem("currentUser");
-        if (!storedUser) {
-           router.push("/");
-        } else {
+        if (storedUser) {
            setCurrentUser(storedUser);
+        } else {
+           router.push("/");
+        }
+      } else {
+        const isAuthenticated = sessionStorage.getItem("isAuthenticated");
+        if (!isAuthenticated) {
+            router.push("/");
         }
       }
     });
@@ -242,14 +245,20 @@ export default function ChatPage() {
     let scrambledMessage = "";
 
     try {
+      console.log("1. Starting handleSend");
       if (imageFileToSend) {
+        console.log("2. Image file exists, preparing to upload.");
         const storageRef = ref(storage, `chat_images/${Date.now()}_${imageFileToSend.name}`);
+        console.log("3. Created storage reference:", storageRef.fullPath);
         await uploadBytes(storageRef, imageFileToSend);
+        console.log("4. Upload complete.");
         imageUrl = await getDownloadURL(storageRef);
+        console.log("5. Got download URL:", imageUrl);
       }
 
       if (messageToSend) {
         scrambledMessage = scrambleMessageLocal(messageToSend);
+         console.log("6. Scrambled message:", scrambledMessage);
       }
 
       const messageToStore: Omit<Message, 'id'> = {
@@ -258,8 +267,10 @@ export default function ChatPage() {
         createdAt: serverTimestamp(),
         ...(imageUrl && { imageUrl }),
       };
-
+      
+      console.log("7. Preparing to add document to Firestore:", messageToStore);
       await addDoc(collection(db, "messages"), messageToStore);
+      console.log("8. Document added to Firestore successfully.");
       
     } catch (error: any) {
       console.error("ERROR SENDING MESSAGE:", error);
@@ -281,6 +292,7 @@ export default function ChatPage() {
     } finally {
       setIsSending(false);
       textareaRef.current?.focus();
+      console.log("9. handleSend finished.");
     }
   };
   
@@ -443,3 +455,5 @@ export default function ChatPage() {
     </div>
   );
 }
+
+    

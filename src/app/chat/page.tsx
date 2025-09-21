@@ -219,22 +219,29 @@ export default function ChatPage() {
       textareaRef.current?.focus();
       return;
     }
-
-    setIsSending(true);
-    setInput("");
     
+    setIsSending(true);
+
+    // Store current state before clearing it
+    const messageToSend = trimmedInput;
+    const imageFileToSend = imageFile;
+    
+    // Immediately clear inputs
+    setInput("");
+    removeImage();
+
     let imageUrl: string | undefined = undefined;
     let scrambledMessage = "";
 
     try {
-      if (imageFile) {
-        const storageRef = ref(storage, `chat_images/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(storageRef, imageFile);
+      if (imageFileToSend) {
+        const storageRef = ref(storage, `chat_images/${Date.now()}_${imageFileToSend.name}`);
+        await uploadBytes(storageRef, imageFileToSend);
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      if (trimmedInput) {
-        scrambledMessage = scrambleMessageLocal(trimmedInput);
+      if (messageToSend) {
+        scrambledMessage = scrambleMessageLocal(messageToSend);
       }
 
       const messageToStore: Omit<Message, 'id'> = {
@@ -246,8 +253,6 @@ export default function ChatPage() {
 
       await addDoc(collection(db, "messages"), messageToStore);
       
-      removeImage();
-
     } catch (error: any) {
       console.error("Error sending message:", error);
       let description = "Could not send message. Please try again.";
@@ -262,6 +267,9 @@ export default function ChatPage() {
         description: `${description} (Code: ${error.code})`,
         variant: "destructive",
       });
+
+      // Restore input if sending failed
+      setInput(messageToSend);
     } finally {
       setIsSending(false);
       textareaRef.current?.focus();

@@ -24,7 +24,7 @@ const EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '❤️', '🎉', '🔥'
 
 interface Message {
   id: string;
-  originalText: string;
+  originalText?: string; // Original text is now optional and only for client-side display
   scrambledText: string;
   sender: string;
   createdAt: any;
@@ -148,15 +148,33 @@ export default function ChatPage() {
         method: SCRAMBLE_METHOD,
       });
 
-      const newMessage: Omit<Message, 'id'> = {
+      // Temporarily add message to UI with original text for immediate feedback
+      const tempId = Date.now().toString();
+      const tempMessage: Message = {
+        id: tempId,
         originalText: trimmedInput,
+        scrambledText: scrambleResult.scrambledMessage,
+        sender: currentUser,
+        createdAt: new Date(),
+        ...(imageUrl && { imageUrl }),
+      };
+      setMessages(prev => [...prev, tempMessage]);
+
+
+      // Only store the scrambled message in Firestore
+      const messageToStore: Omit<Message, 'id' | 'originalText'> = {
         scrambledText: scrambleResult.scrambledMessage,
         sender: currentUser,
         createdAt: serverTimestamp(),
         ...(imageUrl && { imageUrl }),
       };
 
-      await addDoc(collection(db, "messages"), newMessage);
+      await addDoc(collection(db, "messages"), messageToStore);
+      
+      // Remove the temporary message once the DB call is complete
+      // The onSnapshot listener will add the persisted message from Firestore
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+
       removeImage();
 
     } catch (error) {
@@ -210,7 +228,7 @@ export default function ChatPage() {
                         : "bg-muted"
                     )}
                   >
-                    {message.imageUrl && !showScrambled && (
+                    {message.imageUrl && (
                       <Image 
                         src={message.imageUrl} 
                         alt="Chat image" 
@@ -219,7 +237,7 @@ export default function ChatPage() {
                         className="rounded-md mb-2 object-cover" 
                       />
                     )}
-                    <p>{showScrambled ? message.scrambledText : message.originalText}</p>
+                    <p>{showScrambled || !message.originalText ? message.scrambledText : message.originalText}</p>
                   </div>
                    {message.sender === currentUser && (
                     <Avatar className="h-8 w-8">

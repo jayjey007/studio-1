@@ -232,19 +232,19 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen w-full flex-col">
-      <header className="flex h-16 items-center justify-center border-b bg-card px-4">
-        <h1 className="text-xl font-bold">AgentChat</h1>
+    <div className="flex h-screen w-full flex-col bg-background">
+      <header className="flex h-16 items-center justify-center border-b bg-card px-4 shrink-0">
+        <h1 className="text-xl font-semibold">AgentChat</h1>
       </header>
       <main className="flex-1 overflow-hidden">
         <ScrollArea className="h-full" ref={scrollAreaRef}>
           <div className="p-4 md:p-6">
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={cn(
-                    "flex items-start gap-3",
+                    "flex items-start gap-3 w-full",
                     message.sender === currentUser ? "justify-end" : "justify-start"
                   )}
                 >
@@ -257,10 +257,10 @@ export default function ChatPage() {
                   )}
                   <div
                     className={cn(
-                      "max-w-[75%] rounded-lg p-3 text-sm",
+                      "max-w-[75%] rounded-2xl p-3 text-sm",
                       message.sender === currentUser
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
+                        ? "bg-primary text-primary-foreground rounded-br-none"
+                        : "bg-muted rounded-bl-none"
                     )}
                   >
                     {message.imageUrl && (
@@ -269,7 +269,7 @@ export default function ChatPage() {
                         alt="Chat image" 
                         width={300} 
                         height={200}
-                        className="rounded-md mb-2 object-cover" 
+                        className="rounded-xl mb-2 object-cover" 
                       />
                     )}
                     <p>{showScrambled || !message.originalText ? message.scrambledText : message.originalText}</p>
@@ -287,9 +287,9 @@ export default function ChatPage() {
           </div>
         </ScrollArea>
       </main>
-      <footer className="border-t bg-card p-4 space-y-2">
+      <footer className="border-t bg-card p-2 space-y-2">
         {imagePreview && (
-          <div className="relative w-24 h-24">
+          <div className="relative w-24 h-24 ml-2">
             <Image src={imagePreview} alt="Image preview" layout="fill" className="rounded-md object-cover" />
             <Button
               variant="destructive"
@@ -301,7 +301,7 @@ export default function ChatPage() {
             </Button>
           </div>
         )}
-        <div className="relative flex items-center gap-2">
+        <div className="relative flex items-center gap-2 p-2">
           <Input
             ref={inputRef}
             placeholder="Type your message..."
@@ -309,53 +309,58 @@ export default function ChatPage() {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={isSending}
-            className="pr-24"
+            className="rounded-full h-10 pr-28 pl-10 bg-muted"
           />
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageChange}
-            className="hidden"
-            accept="image/*"
-          />
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleAttachClick}>
-              <Paperclip className="h-4 w-4" />
-              <span className="sr-only">Attach Image</span>
-          </Button>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                <Smile className="h-4 w-4" />
-                <span className="sr-only">Add Emoji</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2">
-              <div className="grid grid-cols-6 gap-1">
-                {EMOJIS.map((emoji) => (
-                  <Button
-                    key={emoji}
-                    variant="ghost"
-                    size="icon"
-                    className="text-xl"
-                    onClick={() => handleEmojiClick(emoji)}
-                  >
-                    {emoji}
-                  </Button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-          <Button
-            type="submit"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={handleSend}
-            disabled={isSending || (!input.trim() && !imageFile)}
-          >
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
-            <span className="sr-only">Send</span>
-          </Button>
+          <div className="absolute left-4 flex items-center">
+             <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              className="hidden"
+              accept="image/*"
+            />
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleAttachClick}>
+                <Paperclip className="h-4 w-4" />
+                <span className="sr-only">Attach Image</span>
+            </Button>
+          </div>
+          <div className="absolute right-4 flex items-center gap-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                  <Smile className="h-4 w-4" />
+                  <span className="sr-only">Add Emoji</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2">
+                <div className="grid grid-cols-6 gap-1">
+                  {EMOJIS.map((emoji) => (
+                    <Button
+                      key={emoji}
+                      variant="ghost"
+                      size="icon"
+                      className="text-xl"
+                      onClick={() => handleEmojiClick(emoji)}
+                    >
+                      {emoji}
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button
+              type="submit"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground"
+              onClick={handleSend}
+              disabled={isSending || (!input.trim() && !imageFile)}
+            >
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
+              <span className="sr-only">Send</span>
+            </Button>
+          </div>
         </div>
       </footer>
     </div>
   );
+}

@@ -45,7 +45,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm rounded-3xl">
         <CardHeader className="text-center">
           <div className="mx-auto bg-primary rounded-full p-3 w-fit mb-4">
             <KeyRound className="h-8 w-8 text-primary-foreground" />
@@ -64,12 +64,12 @@ export default function LoginPage() {
               onChange={(e) => setPasscode(e.target.value)}
               onKeyPress={handleKeyPress}
               disabled={isLoading}
-              className="text-center text-lg tracking-widest"
+              className="text-center text-lg tracking-widest rounded-xl h-12"
             />
             <Button
               onClick={handleLogin}
               disabled={isLoading || !passcode}
-              className="w-full"
+              className="w-full rounded-xl h-12 text-lg"
             >
               {isLoading ? "Verifying..." : "Login"}
             </Button>

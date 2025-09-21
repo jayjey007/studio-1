@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Feather } from "lucide-react";
 import { signInAnonymously } from "firebase/auth";
@@ -16,6 +16,7 @@ const MAX_PASSCODE_LENGTH = 10; // A reasonable max length for passcodes
 export default function DisguisedLoginPage() {
   const [input, setInput] = useState("");
   const router = useRouter();
+  const hiddenInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogin = useCallback(async (userIdentifier: string) => {
     try {
@@ -30,46 +31,45 @@ export default function DisguisedLoginPage() {
     }
   }, [router]);
   
-  const handleKeyPress = useCallback(async (event: KeyboardEvent) => {
-    if (event.key === 'Enter') {
-      const user = PASSCODES[input];
-      if (user) {
-        await handleLogin(user);
-      } else {
-        router.push("https://news.google.com");
-      }
-      setInput(""); 
-      return;
-    }
+  const handleInputChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    let currentInput = event.target.value;
     
-    let currentInput = input;
-    if (event.key === 'Backspace') {
-      currentInput = currentInput.slice(0, -1);
-    } else if (event.key.length === 1) { // Only capture single characters
-      currentInput += event.key;
-    }
-
     if (currentInput.length > MAX_PASSCODE_LENGTH) {
         currentInput = currentInput.slice(currentInput.length - MAX_PASSCODE_LENGTH);
     }
     
     setInput(currentInput);
 
-    // Check for passcode match on every keypress
     const user = PASSCODES[currentInput];
     if (user) {
       await handleLogin(user);
       setInput(""); // Reset input after successful login
     }
-
-  }, [input, router, handleLogin]);
+  }, [handleLogin]);
 
   useEffect(() => {
-    window.addEventListener("keydown", handleKeyPress);
+    // Focus the hidden input to bring up the keyboard on mobile
+    hiddenInputRef.current?.focus();
+    
+    // Optional: Refocus on click anywhere to ensure keyboard stays up
+    const refocusInput = () => hiddenInputRef.current?.focus();
+    document.addEventListener('click', refocusInput);
+    
     return () => {
-      window.removeEventListener("keydown", handleKeyPress);
+      document.removeEventListener('click', refocusInput);
     };
-  }, [handleKeyPress]);
+  }, []);
+  
+  const handleFormSubmit = useCallback(async (event: React.FormEvent) => {
+      event.preventDefault();
+      const user = PASSCODES[input];
+      if (user) {
+        await handleLogin(user);
+      } else {
+        router.push("https://news.google.com");
+      }
+      setInput("");
+  }, [input, router, handleLogin]);
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background text-foreground/80 p-4 md:p-8">
@@ -93,6 +93,28 @@ export default function DisguisedLoginPage() {
         <div className="mt-12 border-t border-border pt-4 text-center text-sm text-muted-foreground">
             <p>A thought by the Scribe.</p>
         </div>
+        
+        {/* Hidden form and input for mobile keyboard support */}
+        <form onSubmit={handleFormSubmit} className="absolute">
+             <input
+                ref={hiddenInputRef}
+                type="text"
+                value={input}
+                onChange={handleInputChange}
+                autoComplete="off"
+                autoCapitalize="none"
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    top: '-9999px',
+                    left: '-9999px',
+                    opacity: 0,
+                    width: '1px',
+                    height: '1px',
+                    caretColor: 'transparent',
+                }}
+            />
+        </form>
       </div>
     </div>
   );

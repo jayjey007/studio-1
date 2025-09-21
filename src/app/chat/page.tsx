@@ -80,35 +80,28 @@ export default function ChatPage() {
 
   useEffect(() => {
     const handleLogout = () => {
-      if (isPickingFile.current) {
-        return;
-      }
       sessionStorage.removeItem("isAuthenticated");
       sessionStorage.removeItem("currentUser");
       router.push("/");
     };
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      if (document.hidden && !isPickingFile.current) {
         handleLogout();
         setShowScrambled(true);
       }
     };
     
     const handleFocus = () => {
-       if (isPickingFile.current) {
-        isPickingFile.current = false;
-       }
+      // When the window is re-focused, we can safely assume the file picker is closed.
+      isPickingFile.current = false;
     }
 
     const handleBlur = () => {
-        // A brief timeout helps distinguish between a true blur event 
-        // and the momentary focus loss from opening the file picker.
-        setTimeout(() => {
-            if (!document.hasFocus() && !isPickingFile.current) {
-                 handleLogout();
-            }
-        }, 300);
+        // If we're not picking a file, then a blur event should trigger a logout.
+        if (!isPickingFile.current) {
+          handleLogout();
+        }
     }
     
     window.addEventListener('visibilitychange', handleVisibilityChange);
@@ -133,7 +126,9 @@ export default function ChatPage() {
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
-    // The 'focus' event will handle setting isPickingFile back to false
+    // After the file is selected, we reset the flag.
+    // The 'focus' event listener on the window will also handle this.
+    isPickingFile.current = false; 
   };
 
   const handleAttachClick = () => {

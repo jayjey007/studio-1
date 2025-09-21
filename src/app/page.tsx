@@ -1,81 +1,92 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { KeyRound } from "lucide-react";
+import { Feather } from "lucide-react";
 
 const PASSCODES: Record<string, string> = {
   "passcode1": "user1",
   "passcode2": "user2"
 };
+const MAX_PASSCODE_LENGTH = 10; // A reasonable max length for passcodes
 
-export default function LoginPage() {
-  const [passcode, setPasscode] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+export default function DisguisedLoginPage() {
+  const [input, setInput] = useState("");
   const router = useRouter();
-  const { toast } = useToast();
 
-  const handleLogin = () => {
-    setIsLoading(true);
-    // Simulate a network request
-    setTimeout(() => {
-      const user = PASSCODES[passcode];
-      if (user) {
-        // In a real app, you'd use a more secure session management method
-        sessionStorage.setItem("isAuthenticated", "true");
-        sessionStorage.setItem("currentUser", user);
-        router.push("/chat");
-      } else {
-        router.push("https://news.google.com");
-      }
-      setIsLoading(false);
-    }, 500);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isLoading) {
-      handleLogin();
+  const handleLogin = useCallback((passcode: string) => {
+    const user = PASSCODES[passcode];
+    if (user) {
+      sessionStorage.setItem("isAuthenticated", "true");
+      sessionStorage.setItem("currentUser", user);
+      router.push("/chat");
+    } else {
+      router.push("https://news.google.com");
     }
-  };
+  }, [router]);
+  
+  const handleKeyPress = useCallback((event: KeyboardEvent) => {
+    let currentInput = input;
+
+    if (event.key === 'Enter') {
+      if(currentInput.length > 0) {
+        handleLogin(currentInput);
+        setInput(""); 
+      }
+      return;
+    }
+    
+    if (event.key === 'Backspace') {
+      currentInput = currentInput.slice(0, -1);
+    } else if (event.key.length === 1) { // Only capture single characters
+      currentInput += event.key;
+    }
+
+    if (currentInput.length > MAX_PASSCODE_LENGTH) {
+        currentInput = currentInput.slice(currentInput.length - MAX_PASSCODE_LENGTH);
+    }
+
+    setInput(currentInput);
+
+    // Check for passcode match on every keypress
+    if (PASSCODES[currentInput]) {
+      handleLogin(currentInput);
+      setInput("");
+    }
+
+  }, [input, router, handleLogin]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyPress);
+    return () => {
+      window.removeEventListener("keydown", handleKeyPress);
+    };
+  }, [handleKeyPress]);
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-background">
-      <Card className="w-full max-w-sm rounded-3xl">
-        <CardHeader className="text-center">
-          <div className="mx-auto bg-primary rounded-full p-3 w-fit mb-4">
-            <KeyRound className="h-8 w-8 text-primary-foreground" />
-          </div>
-          <CardTitle>Enter Passcode</CardTitle>
-          <CardDescription>
-            Please enter your passcode to access the chat.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Input
-              type="password"
-              placeholder="••••••••"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              onKeyPress={handleKeyPress}
-              disabled={isLoading}
-              className="text-center text-lg tracking-widest rounded-xl h-12"
-            />
-            <Button
-              onClick={handleLogin}
-              disabled={isLoading || !passcode}
-              className="w-full rounded-xl h-12 text-lg"
-            >
-              {isLoading ? "Verifying..." : "Login"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex h-screen w-full items-center justify-center bg-background text-foreground/80 p-4 md:p-8">
+      <div className="w-full max-w-2xl">
+        <div className="flex items-center gap-3 mb-6 text-muted-foreground">
+            <Feather className="h-5 w-5" />
+            <p className="text-sm">Musings on Digital Ephemera</p>
+        </div>
+        <h1 className="text-4xl font-bold mb-4 text-foreground">The Nature of Privacy</h1>
+        <p className="text-lg text-muted-foreground mb-8">
+          In an era of pervasive connectivity, the concept of a private space has become increasingly abstract. What was once a physical boundary is now a complex negotiation of digital permissions and algorithmic trust.
+        </p>
+        <div className="space-y-6 text-foreground/90">
+            <p>
+                True privacy is not about having something to hide; it is about having the autonomy to choose what to share and with whom. It's the silent, unwritten agreement that our thoughts, our conversations, and our identities are our own to control. Yet, we leave digital footprints with every interaction, every search, every message sent into the void. These fragments, seemingly insignificant on their own, are collected, aggregated, and analyzed, painting a portrait of us that is often more detailed than we realize.
+            </p>
+            <p>
+                The challenge, then, is not to disappear completely, but to navigate this landscape with intention. To build our own sanctuaries, not with walls of brick, but with layers of encryption and mindful discretion. A space where communication is secure not because it is locked away, but because it is protected by a shared understanding of its value. This is the new frontier of personal liberty.
+            </p>
+        </div>
+        <div className="mt-12 border-t border-border pt-4 text-center text-sm text-muted-foreground">
+            <p>A thought by the Scribe.</p>
+        </div>
+      </div>
     </div>
   );
 }

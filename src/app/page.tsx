@@ -4,6 +4,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Feather } from "lucide-react";
+import { signInAnonymously } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 const PASSCODES: Record<string, string> = {
   "passcode1": "user1",
@@ -15,23 +17,29 @@ export default function DisguisedLoginPage() {
   const [input, setInput] = useState("");
   const router = useRouter();
 
-  const handleLogin = useCallback((passcode: string) => {
+  const handleLogin = useCallback(async (passcode: string) => {
     const user = PASSCODES[passcode];
     if (user) {
-      sessionStorage.setItem("isAuthenticated", "true");
-      sessionStorage.setItem("currentUser", user);
-      router.push("/chat");
+      try {
+        await signInAnonymously(auth);
+        sessionStorage.setItem("isAuthenticated", "true");
+        sessionStorage.setItem("currentUser", user);
+        router.push("/chat");
+      } catch (error) {
+        console.error("Anonymous sign-in failed:", error);
+        router.push("https://news.google.com");
+      }
     } else {
       router.push("https://news.google.com");
     }
   }, [router]);
   
-  const handleKeyPress = useCallback((event: KeyboardEvent) => {
+  const handleKeyPress = useCallback(async (event: KeyboardEvent) => {
     let currentInput = input;
 
     if (event.key === 'Enter') {
       if(currentInput.length > 0) {
-        handleLogin(currentInput);
+        await handleLogin(currentInput);
         setInput(""); 
       }
       return;
@@ -51,7 +59,7 @@ export default function DisguisedLoginPage() {
 
     // Check for passcode match on every keypress
     if (PASSCODES[currentInput]) {
-      handleLogin(currentInput);
+      await handleLogin(currentInput);
       setInput("");
     }
 

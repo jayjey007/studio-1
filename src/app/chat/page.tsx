@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { db, storage, auth } from "@/lib/firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,13 +81,19 @@ export default function ChatPage() {
   const isPickingFile = useRef(false);
 
   useEffect(() => {
-    const isAuthenticated = sessionStorage.getItem("isAuthenticated");
-    const user = sessionStorage.getItem("currentUser");
-    if (!isAuthenticated || !user) {
-      router.push("/");
-    } else {
-      setCurrentUser(user);
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.push("/");
+      } else {
+        const storedUser = sessionStorage.getItem("currentUser");
+        if (!storedUser) {
+           router.push("/");
+        } else {
+           setCurrentUser(storedUser);
+        }
+      }
+    });
+    return () => unsubscribe();
   }, [router]);
   
   useEffect(() => {
@@ -114,13 +121,14 @@ export default function ChatPage() {
     }
   }, [messages, unscrambledMessages]);
 
-  useEffect(() => {
-    const handleLogout = () => {
-      sessionStorage.removeItem("isAuthenticated");
-      sessionStorage.removeItem("currentUser");
-      router.push("/");
-    };
+  const handleLogout = useCallback(async () => {
+    sessionStorage.removeItem("isAuthenticated");
+    sessionStorage.removeItem("currentUser");
+    await signOut(auth);
+    router.push("/");
+  }, [router]);
 
+  useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         handleLogout();
@@ -151,7 +159,7 @@ export default function ChatPage() {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [router]);
+  }, [handleLogout]);
 
 
   const handleEmojiClick = (emoji: string) => {
@@ -210,10 +218,8 @@ export default function ChatPage() {
 
 
   const handleSend = async () => {
-    console.log("handleSend triggered");
     const trimmedInput = input.trim();
     if ((!trimmedInput && !imageFile) || !currentUser) {
-      console.log("handleSend aborted: no input, no image, or no user.");
       return;
     }
 
@@ -225,16 +231,10 @@ export default function ChatPage() {
     }
     
     setIsSending(true);
-    console.log("Sending state set to true");
 
-    // Store current state before clearing it
     const messageToSend = trimmedInput;
     const imageFileToSend = imageFile;
     
-    console.log("Message to send:", messageToSend);
-    console.log("Image file to send:", imageFileToSend);
-
-    // Immediately clear inputs
     setInput("");
     removeImage();
 
@@ -243,17 +243,13 @@ export default function ChatPage() {
 
     try {
       if (imageFileToSend) {
-        console.log("Image file detected, starting upload...");
         const storageRef = ref(storage, `chat_images/${Date.now()}_${imageFileToSend.name}`);
         await uploadBytes(storageRef, imageFileToSend);
         imageUrl = await getDownloadURL(storageRef);
-        console.log("Image uploaded successfully. URL:", imageUrl);
       }
 
       if (messageToSend) {
-        console.log("Message text detected, scrambling...");
         scrambledMessage = scrambleMessageLocal(messageToSend);
-        console.log("Scrambled message:", scrambledMessage);
       }
 
       const messageToStore: Omit<Message, 'id'> = {
@@ -263,9 +259,7 @@ export default function ChatPage() {
         ...(imageUrl && { imageUrl }),
       };
 
-      console.log("Preparing to add document to Firestore:", messageToStore);
       await addDoc(collection(db, "messages"), messageToStore);
-      console.log("Document added to Firestore successfully.");
       
     } catch (error: any) {
       console.error("ERROR SENDING MESSAGE:", error);
@@ -286,7 +280,6 @@ export default function ChatPage() {
       setInput(messageToSend);
     } finally {
       setIsSending(false);
-      console.log("Sending state set to false");
       textareaRef.current?.focus();
     }
   };

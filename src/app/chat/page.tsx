@@ -57,12 +57,10 @@ const unscrambleMessage = (scrambledMessage: string): string => {
 export default function ChatPage() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [unscrambledMessages, setUnscrambledMessages] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isSending, setIsSending] = useState(false);
-  const [isUnscrambling, setIsUnscrambling] = useState(false);
+  const [isSending, setIsSending] = useState(isSending);
   const [showScrambled, setShowScrambled] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
@@ -118,7 +116,7 @@ export default function ChatPage() {
         });
       }
     }
-  }, [messages, unscrambledMessages, editingMessageId]);
+  }, [messages, editingMessageId]);
 
   const handleLogout = useCallback(async () => {
     sessionStorage.removeItem("isAuthenticated");
@@ -180,10 +178,6 @@ export default function ChatPage() {
       await updateDoc(messageRef, {
         scrambledText: newScrambledText,
       });
-      // Also update the local unscrambled cache if it exists
-      if (unscrambledMessages[editingMessageId]) {
-        setUnscrambledMessages(prev => ({ ...prev, [editingMessageId]: editingText }));
-      }
       handleCancelEdit();
     } catch (error) {
       console.error("Error updating message:", error);
@@ -237,32 +231,8 @@ export default function ChatPage() {
     }
   };
 
-  const handleToggleScrambled = async () => {
-    const newShowScrambled = !showScrambled;
-    setShowScrambled(newShowScrambled);
-
-    if (!newShowScrambled) {
-      setIsUnscrambling(true);
-      try {
-        const newUnscrambledMessages: Record<string, string> = {};
-        for (const message of messages) {
-          if (!unscrambledMessages[message.id] && message.scrambledText) {
-            const unscrambledText = unscrambleMessage(message.scrambledText);
-            newUnscrambledMessages[message.id] = unscrambledText;
-          }
-        }
-        setUnscrambledMessages(prev => ({ ...prev, ...newUnscrambledMessages }));
-      } catch (error) {
-        console.error("Error unscrambling messages:", error);
-        toast({
-          title: "Error",
-          description: "Could not unscramble messages.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsUnscrambling(false);
-      }
-    }
+  const handleToggleScrambled = () => {
+    setShowScrambled(prev => !prev);
   };
 
 
@@ -359,7 +329,7 @@ export default function ChatPage() {
     if (showScrambled) {
       return message.scrambledText;
     }
-    return unscrambledMessages[message.id] || "Unscrambling...";
+    return unscrambleMessage(message.scrambledText);
   };
 
   return (
@@ -452,11 +422,6 @@ export default function ChatPage() {
                     )}
                   </div>
                 ))}
-                 {(isUnscrambling) && (
-                  <div className="flex justify-center items-center p-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                )}
               </div>
             </div>
           </ScrollArea>
@@ -553,3 +518,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

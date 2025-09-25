@@ -123,20 +123,11 @@ export default function ChatPage() {
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      if (document.visibilityState === 'hidden') {
         handleLogout();
-        setShowScrambled(true);
       }
     };
     
-    const handleFocus = () => {
-        if(isPickingFile.current) {
-            setTimeout(() => {
-              isPickingFile.current = false;
-            }, 500)
-        }
-    }
-
     const handleBlur = () => {
         if (!isPickingFile.current) {
           handleLogout();
@@ -144,12 +135,10 @@ export default function ChatPage() {
     }
     
     window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
   }, [handleLogout]);
@@ -217,6 +206,10 @@ export default function ChatPage() {
   const handleAttachClick = () => {
     isPickingFile.current = true;
     fileInputRef.current?.click();
+    // A brief timeout to allow the file picker to open before re-enabling the blur listener
+    setTimeout(() => {
+        isPickingFile.current = false;
+    }, 1000);
   };
 
   const removeImage = () => {
@@ -510,3 +503,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

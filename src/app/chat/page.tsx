@@ -33,23 +33,20 @@ interface Message {
 const scrambleMessage = (message: string): string => {
   if (!message) return "";
   try {
-    // Handles Unicode characters correctly
     return btoa(unescape(encodeURIComponent(message)));
   } catch (error) {
     console.error("Error scrambling message:", error);
-    return message; // Fallback to original message
+    return message;
   }
 };
 
 const unscrambleMessage = (scrambledMessage: string): string => {
   if (!scrambledMessage) return "";
   try {
-    // Handles Unicode characters correctly
     return decodeURIComponent(escape(atob(scrambledMessage)));
   } catch (error) {
     console.error("Error unscrambling message:", error);
-    // This might happen if the message was not scrambled correctly (e.g., old data)
-    return scrambledMessage; // Fallback to scrambled message
+    return scrambledMessage;
   }
 };
 
@@ -69,7 +66,6 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isPickingFile = useRef(false);
 
-  // State for editing and deleting messages
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
@@ -258,7 +254,6 @@ export default function ChatPage() {
     removeImage();
 
     let imageUrl: string | undefined = undefined;
-    let scrambledMessageText = "";
 
     try {
       if (imageFileToSend) {
@@ -267,9 +262,7 @@ export default function ChatPage() {
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      if (messageToSend) {
-        scrambledMessageText = scrambleMessage(messageToSend);
-      }
+      const scrambledMessageText = scrambleMessage(messageToSend);
 
       const messageToStore: Omit<Message, 'id'> = {
         scrambledText: scrambledMessageText,
@@ -295,7 +288,6 @@ export default function ChatPage() {
         variant: "destructive",
       });
 
-      // Restore input if sending failed
       setInput(messageToSend);
     } finally {
       setIsSending(false);

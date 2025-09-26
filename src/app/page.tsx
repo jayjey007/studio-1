@@ -142,13 +142,13 @@ export default function DisguisedLoginPage() {
       className="flex h-screen w-full items-center justify-center p-4 md:p-8 transition-colors duration-500"
       style={theme as React.CSSProperties}
     >
-      <div className="w-full max-w-2xl" style={{ color: 'var(--foreground)' }}>
-        <div className="flex items-center gap-3 mb-6" style={{ color: 'var(--muted-foreground)' }}>
+      <div className="w-full max-w-2xl">
+        <div className="flex items-center gap-3 mb-6">
             <Feather className="h-5 w-5" />
             <p className="text-sm">Musings on Digital Ephemera</p>
         </div>
         <h1 className="text-4xl font-bold mb-4">{content.title}</h1>
-        <p className="text-lg mb-8" style={{ color: 'var(--muted-foreground)' }}>
+        <p className="text-lg mb-8">
           {content.paragraphs[0]}
         </p>
         <div className="space-y-6">
@@ -159,7 +159,7 @@ export default function DisguisedLoginPage() {
                 {content.paragraphs[2]}
             </p>
         </div>
-        <div className="mt-12 pt-4 text-center text-sm" style={{ borderTopColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
+        <div className="mt-12 pt-4 text-center text-sm border-t">
             <p>A thought by {content.author}.</p>
         </div>
         

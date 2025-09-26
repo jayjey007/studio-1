@@ -43,15 +43,45 @@ const contentSets = [
   }
 ];
 
+const themes = [
+  {
+    '--background': 'hsl(0 0% 100%)',
+    '--foreground': 'hsl(240 10% 3.9%)',
+    '--muted-foreground': 'hsl(240 3.8% 46.1%)',
+    '--border': 'hsl(240 5.9% 90%)',
+  },
+  {
+    '--background': 'hsl(60 30% 96.1%)',
+    '--foreground': 'hsl(60 9.1% 25.1%)',
+    '--muted-foreground': 'hsl(60 5.1% 50.1%)',
+    '--border': 'hsl(60 9.1% 88.1%)',
+  },
+  {
+    '--background': 'hsl(204 20% 95%)',
+    '--foreground': 'hsl(210 10% 23%)',
+    '--muted-foreground': 'hsl(210 8% 45%)',
+    '--border': 'hsl(204 10% 88%)',
+  },
+  { // Dark theme
+    '--background': 'hsl(240 10% 3.9%)',
+    '--foreground': 'hsl(0 0% 98%)',
+    '--muted-foreground': 'hsl(240 3.7% 63.9%)',
+    '--border': 'hsl(240 3.7% 15.9%)',
+  },
+];
+
+
 export default function DisguisedLoginPage() {
   const [input, setInput] = useState("");
   const router = useRouter();
   const hiddenInputRef = useRef<HTMLInputElement>(null);
-  const [content, setContent] = useState(contentSets[0]); // Default to first content set
+  const [content, setContent] = useState(contentSets[0]);
+  const [theme, setTheme] = useState(themes[0]);
 
   useEffect(() => {
-    // Randomly select content on the client side to avoid hydration mismatch
+    // Randomly select content and theme on the client side to avoid hydration mismatch
     setContent(contentSets[Math.floor(Math.random() * contentSets.length)]);
+    setTheme(themes[Math.floor(Math.random() * themes.length)]);
   }, []);
 
   const handleLogin = useCallback(async (userIdentifier: string) => {
@@ -108,17 +138,20 @@ export default function DisguisedLoginPage() {
   }, [input, router, handleLogin]);
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-background text-foreground/80 p-4 md:p-8">
-      <div className="w-full max-w-2xl">
-        <div className="flex items-center gap-3 mb-6 text-muted-foreground">
+    <div 
+      className="flex h-screen w-full items-center justify-center p-4 md:p-8 transition-colors duration-500"
+      style={theme as React.CSSProperties}
+    >
+      <div className="w-full max-w-2xl" style={{ color: 'var(--foreground)' }}>
+        <div className="flex items-center gap-3 mb-6" style={{ color: 'var(--muted-foreground)' }}>
             <Feather className="h-5 w-5" />
             <p className="text-sm">Musings on Digital Ephemera</p>
         </div>
-        <h1 className="text-4xl font-bold mb-4 text-foreground">{content.title}</h1>
-        <p className="text-lg text-muted-foreground mb-8">
+        <h1 className="text-4xl font-bold mb-4">{content.title}</h1>
+        <p className="text-lg mb-8" style={{ color: 'var(--muted-foreground)' }}>
           {content.paragraphs[0]}
         </p>
-        <div className="space-y-6 text-foreground/90">
+        <div className="space-y-6">
             <p>
                 {content.paragraphs[1]}
             </p>
@@ -126,7 +159,7 @@ export default function DisguisedLoginPage() {
                 {content.paragraphs[2]}
             </p>
         </div>
-        <div className="mt-12 border-t border-border pt-4 text-center text-sm text-muted-foreground">
+        <div className="mt-12 pt-4 text-center text-sm" style={{ borderTopColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
             <p>A thought by {content.author}.</p>
         </div>
         

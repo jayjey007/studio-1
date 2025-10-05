@@ -483,13 +483,14 @@ export default function ChatPage() {
                       )}
                     >
                       {message.mediaUrl && message.mediaType === 'image' && (
-                        <Image 
-                          src={message.mediaUrl} 
-                          alt="Chat image" 
-                          width={300} 
-                          height={200}
-                          className="rounded-xl mb-2 object-cover" 
-                        />
+                         <div className="relative w-full max-w-[300px] aspect-video mb-2">
+                            <Image 
+                              src={message.mediaUrl} 
+                              alt="Chat image"
+                              fill
+                              className="rounded-xl object-cover" 
+                            />
+                        </div>
                       )}
                       {message.mediaUrl && message.mediaType === 'video' && (
                         <video 

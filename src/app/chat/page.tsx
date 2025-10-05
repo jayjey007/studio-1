@@ -28,7 +28,8 @@ interface Message {
   scrambledText: string;
   sender: string;
   createdAt: any;
-  imageUrl?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
 }
 
 const scrambleMessage = (message: string): string => {
@@ -55,8 +56,9 @@ export default function ChatPage() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [showScrambled, setShowScrambled] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -97,7 +99,6 @@ export default function ChatPage() {
   useEffect(() => {
     if (!currentUser) return;
     
-    // Subscribe to the most recent messages for real-time updates
     const q = query(
       collection(db, "messages"), 
       orderBy("createdAt", "desc"), 
@@ -115,7 +116,6 @@ export default function ChatPage() {
       setMessages(messagesData.reverse());
       setHasMoreMessages(querySnapshot.docs.length === MESSAGES_PER_PAGE);
 
-      // Scroll to bottom only on initial load or new messages
       setTimeout(() => {
         const viewport = scrollViewportRef.current;
         if (viewport) {
@@ -150,13 +150,11 @@ export default function ChatPage() {
     setHasMoreMessages(querySnapshot.docs.length === MESSAGES_PER_PAGE);
 
     if (oldMessagesData.length > 0) {
-      // Keep track of old scroll height to maintain position
       const viewport = scrollViewportRef.current;
       const oldScrollHeight = viewport?.scrollHeight || 0;
       
       setMessages(prev => [...oldMessagesData.reverse(), ...prev]);
 
-      // Restore scroll position
       requestAnimationFrame(() => {
         if(viewport) {
           viewport.scrollTop = viewport.scrollHeight - oldScrollHeight;
@@ -247,11 +245,23 @@ export default function ChatPage() {
     textareaRef.current?.focus();
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+      if (file.type.startsWith('image/')) {
+        setMediaType('image');
+      } else if (file.type.startsWith('video/')) {
+        setMediaType('video');
+      } else {
+        toast({
+          title: "Unsupported file type",
+          description: "Please select an image or video file.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setMediaFile(file);
+      setMediaPreview(URL.createObjectURL(file));
     }
   };
 
@@ -259,9 +269,10 @@ export default function ChatPage() {
     fileInputRef.current?.click();
   };
 
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
+  const removeMedia = () => {
+    setMediaFile(null);
+    setMediaPreview(null);
+    setMediaType(null);
     if(fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -274,11 +285,11 @@ export default function ChatPage() {
 
   const handleSend = async () => {
     const trimmedInput = input.trim();
-    if ((!trimmedInput && !imageFile) || !currentUser) {
+    if ((!trimmedInput && !mediaFile) || !currentUser) {
       return;
     }
 
-    if (trimmedInput.toLowerCase() === 'toggle' && !imageFile) {
+    if (trimmedInput.toLowerCase() === 'toggle' && !mediaFile) {
       handleToggleScrambled();
       setInput('');
       textareaRef.current?.focus();
@@ -288,18 +299,19 @@ export default function ChatPage() {
     setIsSending(true);
 
     const messageToSend = trimmedInput;
-    const imageFileToSend = imageFile;
+    const mediaFileToSend = mediaFile;
+    const mediaTypeToSend = mediaType;
     
     setInput("");
-    removeImage();
+    removeMedia();
 
-    let imageUrl: string | undefined = undefined;
+    let mediaUrl: string | undefined = undefined;
 
     try {
-      if (imageFileToSend) {
-        const storageRef = ref(storage, `chat_images/${Date.now()}_${imageFileToSend.name}`);
-        await uploadBytes(storageRef, imageFileToSend);
-        imageUrl = await getDownloadURL(storageRef);
+      if (mediaFileToSend) {
+        const storageRef = ref(storage, `chat_media/${Date.now()}_${mediaFileToSend.name}`);
+        await uploadBytes(storageRef, mediaFileToSend);
+        mediaUrl = await getDownloadURL(storageRef);
       }
 
       const scrambledMessageText = scrambleMessage(messageToSend);
@@ -308,7 +320,7 @@ export default function ChatPage() {
         scrambledText: scrambledMessageText,
         sender: currentUser,
         createdAt: serverTimestamp(),
-        ...(imageUrl && { imageUrl }),
+        ...(mediaUrl && { mediaUrl, mediaType: mediaTypeToSend! }),
       };
       
       await addDoc(collection(db, "messages"), messageToStore);
@@ -322,9 +334,9 @@ export default function ChatPage() {
       console.error("ERROR SENDING MESSAGE:", error);
       let description = "Could not send message. Please try again.";
        if (error.code === 'storage/unauthorized') {
-        description = "You don't have permission to upload images. Please check your Firebase Storage rules."
+        description = "You don't have permission to upload files. Please check your Firebase Storage rules."
       } else if (error.code === 'storage/retry-limit-exceeded') {
-        description = "Network error: Could not upload image. Please check your connection and Firebase Storage rules."
+        description = "Network error: Could not upload file. Please check your connection and Firebase Storage rules."
       }
 
       toast({
@@ -369,8 +381,9 @@ export default function ChatPage() {
         const file = items[i].getAsFile();
         if (file) {
           event.preventDefault();
-          setImageFile(file);
-          setImagePreview(URL.createObjectURL(file));
+          setMediaType('image');
+          setMediaFile(file);
+          setMediaPreview(URL.createObjectURL(file));
           break;
         }
       }
@@ -442,13 +455,20 @@ export default function ChatPage() {
                           : "bg-muted rounded-bl-none"
                       )}
                     >
-                      {message.imageUrl && (
+                      {message.mediaUrl && message.mediaType === 'image' && (
                         <Image 
-                          src={message.imageUrl} 
+                          src={message.mediaUrl} 
                           alt="Chat image" 
                           width={300} 
                           height={200}
                           className="rounded-xl mb-2 object-cover" 
+                        />
+                      )}
+                      {message.mediaUrl && message.mediaType === 'video' && (
+                        <video 
+                          src={message.mediaUrl} 
+                          controls
+                          className="rounded-xl mb-2 w-full max-w-[300px]"
                         />
                       )}
                       {editingMessageId === message.id ? (
@@ -466,7 +486,7 @@ export default function ChatPage() {
                           </div>
                         </div>
                       ) : (
-                        <p className="whitespace-pre-wrap">{getMessageContent(message)}</p>
+                        message.scrambledText && <p className="whitespace-pre-wrap">{getMessageContent(message)}</p>
                       )}
                     </div>
                      {message.sender === currentUser && (
@@ -483,14 +503,15 @@ export default function ChatPage() {
           </ScrollArea>
         </main>
         <footer className="border-t bg-card p-2 space-y-2">
-          {imagePreview && (
+          {mediaPreview && (
             <div className="relative w-24 h-24 ml-2">
-              <Image src={imagePreview} alt="Image preview" fill className="rounded-md object-cover" />
+              {mediaType === 'image' && <Image src={mediaPreview} alt="Image preview" fill className="rounded-md object-cover" />}
+              {mediaType === 'video' && <video src={mediaPreview} muted autoPlay loop className="rounded-md object-cover w-full h-full" />}
               <Button
                 variant="destructive"
                 size="icon"
                 className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                onClick={removeImage}
+                onClick={removeMedia}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -501,13 +522,13 @@ export default function ChatPage() {
               <input
                 type="file"
                 ref={fileInputRef}
-                onChange={handleImageChange}
+                onChange={handleFileChange}
                 className="hidden"
-                accept="image/*"
+                accept="image/*,video/*"
               />
               <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttachClick}>
                   <Paperclip className="h-5 w-5" />
-                  <span className="sr-only">Attach Image</span>
+                  <span className="sr-only">Attach File</span>
               </Button>
                <Popover>
                 <PopoverTrigger asChild>
@@ -549,7 +570,7 @@ export default function ChatPage() {
               size="icon"
               className="h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground"
               onClick={handleSend}
-              disabled={isSending || (!input.trim() && !imageFile)}
+              disabled={isSending || (!input.trim() && !mediaFile)}
             >
               {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
               <span className="sr-only">Send</span>
@@ -567,9 +588,7 @@ export default function ChatPage() {
             This action cannot be undone. This will permanently delete your message.
           </AlertDialogDescription>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeletingMessageId(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteMessage} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletingMessageId(null)}>Cancel</AlertDialogAlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>

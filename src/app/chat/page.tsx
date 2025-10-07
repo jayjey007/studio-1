@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, limit, getDocs, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
@@ -11,7 +12,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -434,100 +435,104 @@ export default function ChatPage() {
         </header>
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
-            <div className="p-4 md:p-6" ref={scrollViewportRef} onScroll={handleScroll}>
-                {loadingMore && <div className="flex justify-center p-2"><Loader2 className="h-5 w-5 animate-spin" /></div>}
-              <div className="flex flex-col gap-2">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "flex items-start gap-3 w-full group",
-                      message.sender === currentUser ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    {message.sender !== currentUser && (
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>
-                          <User className="h-5 w-5" />
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                    
-                    {message.sender === currentUser && (
-                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <MoreHorizontal className="h-4 w-4" />
-                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => handleStartEdit(message)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            <span>Edit</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setDeletingMessageId(message.id)} className="text-red-500">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            <span>Delete</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                       </DropdownMenu>
-                    )}
-
+             <ScrollAreaPrimitive.Viewport ref={scrollViewportRef} className="h-full w-full rounded-[inherit]" onScroll={handleScroll}>
+              <div className="p-4 md:p-6">
+                  {loadingMore && <div className="flex justify-center p-2"><Loader2 className="h-5 w-5 animate-spin" /></div>}
+                <div className="flex flex-col gap-2">
+                  {messages.map((message) => (
                     <div
+                      key={message.id}
                       className={cn(
-                        "max-w-[75%] rounded-2xl p-3 text-sm",
-                        message.sender === currentUser
-                          ? "bg-primary text-primary-foreground rounded-br-none"
-                          : "bg-muted rounded-bl-none"
+                        "flex items-start gap-3 w-full group",
+                        message.sender === currentUser ? "justify-end" : "justify-start"
                       )}
                     >
-                      {message.mediaUrl && message.mediaType === 'image' && (
-                         <div className="relative mb-2">
-                            <Image 
-                              src={message.mediaUrl} 
-                              alt="Chat image"
-                              width={300}
-                              height={200}
-                              className="rounded-xl object-cover" 
-                            />
-                        </div>
+                      {message.sender !== currentUser && (
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>
+                            <User className="h-5 w-5" />
+                          </AvatarFallback>
+                        </Avatar>
                       )}
-                      {message.mediaUrl && message.mediaType === 'video' && (
-                        <video 
-                          src={message.mediaUrl} 
-                          controls
-                          className="rounded-xl mb-2 w-full max-w-[300px]"
-                        />
+                      
+                      {message.sender === currentUser && (
+                         <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <MoreHorizontal className="h-4 w-4" />
+                             </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => handleStartEdit(message)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              <span>Edit</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setDeletingMessageId(message.id)} className="text-red-500">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Delete</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                         </DropdownMenu>
                       )}
-                      {editingMessageId === message.id ? (
-                        <div className="space-y-2">
-                          <Textarea 
-                            value={editingText}
-                            onChange={(e) => setEditingText(e.target.value)}
-                            onKeyDown={handleEditKeyPress}
-                            className="bg-background text-foreground resize-none"
-                            rows={3}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="ghost" onClick={handleCancelEdit}>Cancel</Button>
-                            <Button size="sm" onClick={handleUpdateMessage}>Save</Button>
+
+                      <div
+                        className={cn(
+                          "max-w-[75%] rounded-2xl p-3 text-sm",
+                          message.sender === currentUser
+                            ? "bg-primary text-primary-foreground rounded-br-none"
+                            : "bg-muted rounded-bl-none"
+                        )}
+                      >
+                        {message.mediaUrl && message.mediaType === 'image' && (
+                           <div className="relative mb-2">
+                              <Image 
+                                src={message.mediaUrl} 
+                                alt="Chat image"
+                                width={300}
+                                height={200}
+                                className="rounded-xl object-cover" 
+                              />
                           </div>
-                        </div>
-                      ) : (
-                        message.scrambledText && <LinkifyText text={getMessageContent(message)} />
+                        )}
+                        {message.mediaUrl && message.mediaType === 'video' && (
+                          <video 
+                            src={message.mediaUrl} 
+                            controls
+                            className="rounded-xl mb-2 w-full max-w-[300px]"
+                          />
+                        )}
+                        {editingMessageId === message.id ? (
+                          <div className="space-y-2">
+                            <Textarea 
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                              onKeyDown={handleEditKeyPress}
+                              className="bg-background text-foreground resize-none"
+                              rows={3}
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" variant="ghost" onClick={handleCancelEdit}>Cancel</Button>
+                              <Button size="sm" onClick={handleUpdateMessage}>Save</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          message.scrambledText && <LinkifyText text={getMessageContent(message)} />
+                        )}
+                      </div>
+                       {message.sender === currentUser && (
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>
+                             <User className="h-5 w-5" />
+                          </AvatarFallback>
+                        </Avatar>
                       )}
                     </div>
-                     {message.sender === currentUser && (
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>
-                           <User className="h-5 w-5" />
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            </ScrollAreaPrimitive.Viewport>
+            <ScrollBar />
+            <ScrollAreaPrimitive.Corner />
           </ScrollArea>
         </main>
         <footer className="border-t bg-card p-2 space-y-2">

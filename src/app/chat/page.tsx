@@ -90,7 +90,6 @@ export default function ChatPage() {
   const [showScrambled, setShowScrambled] = useState(true);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -434,8 +433,8 @@ export default function ChatPage() {
           <h1 className="text-xl font-semibold">AgentChat</h1>
         </header>
         <main className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full" ref={scrollAreaRef} onScroll={handleScroll}>
-            <div className="p-4 md:p-6" ref={scrollViewportRef}>
+          <ScrollArea className="h-full">
+            <div className="p-4 md:p-6" ref={scrollViewportRef} onScroll={handleScroll}>
                 {loadingMore && <div className="flex justify-center p-2"><Loader2 className="h-5 w-5 animate-spin" /></div>}
               <div className="flex flex-col gap-2">
                 {messages.map((message) => (

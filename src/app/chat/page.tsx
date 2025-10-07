@@ -130,13 +130,6 @@ export default function ChatPage() {
       });
       
       setMessages(messagesData);
-
-      setTimeout(() => {
-        const viewport = scrollViewportRef.current;
-        if (viewport) {
-          viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'auto' });
-        }
-      }, 100);
     });
 
     return () => unsubscribe();
@@ -145,7 +138,7 @@ export default function ChatPage() {
   useEffect(() => {
     const viewport = scrollViewportRef.current;
     if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
+      viewport.scrollTop = viewport.scrollHeight;
     }
   }, [messages]);
 
@@ -434,7 +427,7 @@ export default function ChatPage() {
                         )}
                       >
                         {message.mediaUrl && message.mediaType === 'image' && (
-                           <div className="relative mb-2">
+                           <div className="mb-2">
                               <Image 
                                 src={message.mediaUrl} 
                                 alt="Chat image"
@@ -579,3 +572,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

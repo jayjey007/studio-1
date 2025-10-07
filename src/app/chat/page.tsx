@@ -101,11 +101,12 @@ export default function ChatPage() {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   
   const scrollToBottom = useCallback(() => {
-    const viewport = scrollViewportRef.current?.querySelector('div[data-radix-scroll-area-viewport]');
-    if (viewport) {
+    if (scrollViewportRef.current) {
       setTimeout(() => {
-        viewport.scrollTop = viewport.scrollHeight;
-      }, 0);
+        if (scrollViewportRef.current) {
+          scrollViewportRef.current.scrollTop = scrollViewportRef.current.scrollHeight;
+        }
+      }, 100);
     }
   }, []);
 
@@ -481,7 +482,6 @@ export default function ChatPage() {
                                 height={200}
                                 className="rounded-xl object-cover"
                                 onLoad={scrollToBottom}
-                                unoptimized
                               />
                           </div>
                         )}
@@ -611,10 +611,10 @@ export default function ChatPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your message.
+            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete your message.
-          </AlertDialogDescription>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeletingMessageId(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteMessage}>Delete</AlertDialogAction>

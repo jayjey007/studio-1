@@ -101,7 +101,7 @@ export default function ChatPage() {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   
   const scrollToBottom = useCallback(() => {
-    const viewport = scrollViewportRef.current;
+    const viewport = scrollViewportRef.current?.querySelector('div[data-radix-scroll-area-viewport]');
     if (viewport) {
       setTimeout(() => {
         viewport.scrollTop = viewport.scrollHeight;

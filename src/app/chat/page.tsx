@@ -62,6 +62,33 @@ const decodeMessage = (text: string, shift: number = 1): string => {
     .join('');
 };
 
+const LinkifiedText = ({ text }: { text: string }) => {
+    const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+    const parts = text.split(urlRegex);
+
+    return (
+        <p className="whitespace-pre-wrap break-words">
+            {parts.map((part, i) => {
+                if (part && part.match(urlRegex)) {
+                    return (
+                        <a
+                            key={i}
+                            href={part}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline text-blue-300 hover:text-blue-400"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {part}
+                        </a>
+                    );
+                }
+                return part;
+            })}
+        </p>
+    );
+};
+
 
 export default function ChatPage() {
   const router = useRouter();
@@ -379,7 +406,7 @@ export default function ChatPage() {
                             onLoad={scrollToBottom}
                             />
                         )}
-                        <p className="whitespace-pre-wrap break-words">{getMessageText(message)}</p>
+                        <LinkifiedText text={getMessageText(message)} />
                         {message.createdAt && (
                             <p
                             className={cn(
@@ -531,5 +558,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

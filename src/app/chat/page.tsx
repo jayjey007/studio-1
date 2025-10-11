@@ -13,9 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, User, Smile, Paperclip, X, Trash2, MessageSquareReply, MoreVertical } from "lucide-react";
+import { Loader2, Send, User, Smile, Paperclip, X, Trash2, MessageSquareReply } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
@@ -312,9 +311,8 @@ export default function ChatPage() {
     return text;
   }
   
-  const handleReplyClick = () => {
-    if (!selectedMessage) return;
-    setReplyingTo(selectedMessage);
+  const handleReplyClick = (message: Message) => {
+    setReplyingTo(message);
     setSelectedMessage(null);
     inputRef.current?.focus();
   }
@@ -341,66 +339,80 @@ export default function ChatPage() {
                     id={message.id}
                     onClick={(e) => { e.stopPropagation(); handleMessageSelect(message); }}
                     className={cn(
-                      "group flex cursor-pointer items-start gap-3 rounded-lg p-2 transition-colors",
+                      "group flex items-start gap-3 rounded-lg p-2 transition-colors",
                       message.sender === currentUser
                         ? "justify-end"
                         : "justify-start",
-                      selectedMessage?.id === message.id ? 'bg-muted' : 'hover:bg-muted/50'
+                       selectedMessage?.id === message.id ? 'bg-muted' : 'hover:bg-muted/50',
+                       "cursor-pointer"
                     )}
                   >
-                    {message.sender !== currentUser && (
+                     {message.sender !== currentUser && (
                       <Avatar className="h-8 w-8 shrink-0">
                         <AvatarFallback>
                           <User className="h-5 w-5" />
                         </AvatarFallback>
                       </Avatar>
                     )}
-                    <div
-                      className={cn(
-                        "max-w-[75%] rounded-lg p-3 text-sm",
-                        message.sender === currentUser
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-card border"
-                      )}
-                    >
-                      {message.replyingToId && (
-                         <a href={`#${message.replyingToId}`} className="block mb-2 p-2 rounded-md bg-black/20 hover:bg-black/30 transition-colors">
-                            <p className="text-xs font-semibold">{message.replyingToSender === currentUser ? 'You' : message.replyingToSender}</p>
-                            <p className="text-xs text-primary-foreground/80">{message.replyingToText}</p>
-                         </a>
-                      )}
-                      {message.imageUrl && (
-                        <Image
-                          src={message.imageUrl}
-                          alt="Chat image"
-                          width={300}
-                          height={200}
-                          className="rounded-md mb-2 object-cover"
-                          onLoad={scrollToBottom}
-                        />
-                      )}
-                      <p className="whitespace-pre-wrap break-words">{getMessageText(message)}</p>
-                      {message.createdAt && (
-                        <p
-                          className={cn(
-                            "text-xs mt-1",
+                    <div className={cn("flex items-center gap-2", message.sender === currentUser ? 'flex-row-reverse' : 'flex-row' )}>
+                        <div
+                        className={cn(
+                            "max-w-[75%] rounded-lg p-3 text-sm",
                             message.sender === currentUser
-                              ? "text-primary-foreground/70"
-                              : "text-muted-foreground/70"
-                          )}
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-card border"
+                        )}
                         >
-                          {format(message.createdAt.toDate(), "h:mm a")}
-                        </p>
-                      )}
+                        {message.replyingToId && (
+                            <a href={`#${message.replyingToId}`} className="block mb-2 p-2 rounded-md bg-black/20 hover:bg-black/30 transition-colors">
+                                <p className="text-xs font-semibold">{message.replyingToSender === currentUser ? 'You' : message.replyingToSender}</p>
+                                <p className="text-xs text-primary-foreground/80">{message.replyingToText}</p>
+                            </a>
+                        )}
+                        {message.imageUrl && (
+                            <Image
+                            src={message.imageUrl}
+                            alt="Chat image"
+                            width={300}
+                            height={200}
+                            className="rounded-md mb-2 object-cover"
+                            onLoad={scrollToBottom}
+                            />
+                        )}
+                        <p className="whitespace-pre-wrap break-words">{getMessageText(message)}</p>
+                        {message.createdAt && (
+                            <p
+                            className={cn(
+                                "text-xs mt-1",
+                                message.sender === currentUser
+                                ? "text-primary-foreground/70"
+                                : "text-muted-foreground/70"
+                            )}
+                            >
+                            {format(message.createdAt.toDate(), "h:mm a")}
+                            </p>
+                        )}
+                        </div>
+                         <div className={cn(
+                          "flex self-center gap-1 transition-opacity",
+                          selectedMessage?.id === message.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        )}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReplyClick(message)}>
+                                <MessageSquareReply className="h-4 w-4" />
+                            </Button>
+                            {message.sender === currentUser && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeletingMessageId(message.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
                     </div>
                     {message.sender === currentUser && (
-                      <>
-                        <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarFallback>
-                            <User className="h-5 w-5" />
-                          </AvatarFallback>
-                        </Avatar>
-                      </>
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback>
+                          <User className="h-5 w-5" />
+                        </AvatarFallback>
+                      </Avatar>
                     )}
                   </div>
                 ))}
@@ -439,6 +451,32 @@ export default function ChatPage() {
             </div>
           )}
           <div className="flex items-end gap-2">
+            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttachClick}>
+                <Paperclip className="h-4 w-4" />
+            </Button>
+            <Popover>
+                <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
+                    <Smile className="h-4 w-4" />
+                    <span className="sr-only">Add Emoji</span>
+                </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-2" side="top" align="end">
+                <div className="grid grid-cols-6 gap-1">
+                    {EMOJIS.map((emoji) => (
+                    <Button
+                        key={emoji}
+                        variant="ghost"
+                        size="icon"
+                        className="text-xl"
+                        onClick={() => handleEmojiClick(emoji)}
+                    >
+                        {emoji}
+                    </Button>
+                    ))}
+                </div>
+                </PopoverContent>
+            </Popover>
             <Textarea
               ref={inputRef}
               placeholder="Type your message..."
@@ -449,69 +487,17 @@ export default function ChatPage() {
               className={cn("max-h-32", replyingTo ? "rounded-t-none" : "")}
               rows={1}
             />
-            <div className="flex flex-col gap-1">
-                <Button
-                    type="submit"
-                    size="icon"
-                    className="h-10 w-10 shrink-0"
-                    onClick={handleSend}
-                    disabled={isSending || (!input.trim() && !imageFile)}
-                >
-                    {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
-                    <span className="sr-only">Send</span>
-                </Button>
-                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
-                        <MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">More actions</span>
-                    </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent side="top" align="end">
-                         <DropdownMenuItem onClick={handleAttachClick}>
-                            <Paperclip className="mr-2 h-4 w-4" />
-                            <span>Attach File</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem disabled={!selectedMessage} onClick={handleReplyClick}>
-                            <MessageSquareReply className="mr-2 h-4 w-4" />
-                            <span>Reply</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            disabled={!selectedMessage || selectedMessage.sender !== currentUser}
-                            onClick={() => selectedMessage && setDeletingMessageId(selectedMessage.id)}
-                            className="text-destructive"
-                        >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            <span>Delete</span>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-
-                 <Popover>
-                    <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
-                        <Smile className="h-4 w-4" />
-                        <span className="sr-only">Add Emoji</span>
-                    </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-2" side="top" align="end">
-                    <div className="grid grid-cols-6 gap-1">
-                        {EMOJIS.map((emoji) => (
-                        <Button
-                            key={emoji}
-                            variant="ghost"
-                            size="icon"
-                            className="text-xl"
-                            onClick={() => handleEmojiClick(emoji)}
-                        >
-                            {emoji}
-                        </Button>
-                        ))}
-                    </div>
-                    </PopoverContent>
-                </Popover>
-            </div>
-
+            <Button
+                type="submit"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={handleSend}
+                disabled={isSending || (!input.trim() && !imageFile)}
+            >
+                {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
+                <span className="sr-only">Send</span>
+            </Button>
+            
             <input
               type="file"
               ref={fileInputRef}
@@ -545,3 +531,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

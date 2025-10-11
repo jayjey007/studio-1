@@ -14,7 +14,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, Send, User, Smile, Paperclip, X, Trash2, MessageSquareReply } from "lucide-react";
 import { format } from "date-fns";
 
@@ -100,7 +99,6 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
-  const isMobile = useIsMobile();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,31 +114,29 @@ export default function ChatPage() {
   };
   
   useEffect(() => {
-    if (!isMobile) {
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'hidden') {
-          handleLogout();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleLogout();
+      }
+    };
+
+    const handleBlur = () => {
+      setTimeout(() => {
+        if (document.activeElement?.tagName.toLowerCase() === 'iframe') {
+          return;
         }
-      };
+        handleLogout();
+      }, 300);
+    };
 
-      const handleBlur = () => {
-        setTimeout(() => {
-          if (document.activeElement?.tagName.toLowerCase() === 'iframe') {
-            return;
-          }
-          handleLogout();
-        }, 300);
-      };
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
 
-      window.addEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('blur', handleBlur);
-
-      return () => {
-        window.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('blur', handleBlur);
-      };
-    }
-  }, [isMobile, router]);
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [router]);
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem("isAuthenticated");

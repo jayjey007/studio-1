@@ -108,8 +108,8 @@ export default function ChatPage() {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
   const getDisplayName = useCallback((sender: string) => {
-    if (sender === 'user1' || sender === 'Crazy') return 'Crazy_S';
-    if (sender === 'user2' || sender === 'Cool') return 'Cool_J';
+    if (sender === 'user1') return 'Crazy_S';
+    if (sender === 'user2') return 'Cool_J';
     return sender;
   }, []);
 
@@ -127,12 +127,7 @@ export default function ChatPage() {
     };
 
     const handleBlur = () => {
-      setTimeout(() => {
-        if (document.activeElement?.tagName.toLowerCase() === 'iframe') {
-          return;
-        }
-        handleLogout();
-      }, 300);
+      handleLogout();
     };
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
@@ -569,5 +564,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

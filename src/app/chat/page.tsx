@@ -69,7 +69,7 @@ export default function ChatPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [showScrambled, setShowScrambled] = useState(true);
+  const [showScrambled, setShowScrambled] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -312,8 +312,12 @@ export default function ChatPage() {
   return (
     <>
     <div className="flex h-screen w-full flex-col">
-      <header className="flex h-16 items-center justify-center border-b bg-card px-4">
+      <header className="flex h-16 items-center justify-between border-b bg-card px-4">
         <h1 className="text-xl font-bold">AgentChat</h1>
+        <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Scrambled</span>
+            <Switch checked={showScrambled} onCheckedChange={setShowScrambled} />
+        </div>
       </header>
       <main className="flex-1 overflow-hidden">
         <ScrollArea className="h-full" ref={scrollAreaRef}>
@@ -471,5 +475,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

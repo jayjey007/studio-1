@@ -102,7 +102,6 @@ export default function ChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isPickingFile = useRef(false);
 
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -161,46 +160,6 @@ export default function ChatPage() {
   }, [messages]);
 
 
-  useEffect(() => {
-    const handleLogout = () => {
-      sessionStorage.removeItem("isAuthenticated");
-      sessionStorage.removeItem("currentUser");
-      router.push("/");
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handleLogout();
-      }
-    };
-    
-    const handleFocus = () => {
-      setTimeout(() => {
-        if (!isPickingFile.current) {
-          return;
-        }
-        isPickingFile.current = false;
-      }, 200)
-    }
-
-    const handleBlur = () => {
-        if (!isPickingFile.current) {
-          handleLogout();
-        }
-    }
-    
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-
-    return () => {
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [router]);
-
-
   const handleEmojiClick = (emoji: string) => {
     setInput(prev => prev + emoji);
     inputRef.current?.focus();
@@ -215,7 +174,6 @@ export default function ChatPage() {
   };
 
   const handleAttachClick = () => {
-    isPickingFile.current = true;
     fileInputRef.current?.click();
   };
 
@@ -575,3 +533,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

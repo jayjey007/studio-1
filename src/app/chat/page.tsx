@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, User, Smile, Paperclip, X, Trash2 } from "lucide-react";
+import { Loader2, Send, User, Smile, Paperclip, X, Trash2, MessageSquareReply } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
@@ -28,6 +28,9 @@ interface Message {
   createdAt: Timestamp;
   imageUrl?: string;
   isEncoded: boolean;
+  replyingToId?: string;
+  replyingToText?: string;
+  replyingToSender?: string;
 }
 
 // Simple Caesar cipher for encoding
@@ -75,6 +78,7 @@ export default function ChatPage() {
   const isPickingFile = useRef(false);
 
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem("isAuthenticated");
@@ -197,6 +201,14 @@ export default function ChatPage() {
     let imageUrl: string | undefined = undefined;
     const tempId = Date.now().toString();
 
+    const replyingToData = replyingTo ? {
+      replyingToId: replyingTo.id,
+      replyingToText: getMessageText(replyingTo, 50),
+      replyingToSender: replyingTo.sender,
+    } : {};
+    
+    setReplyingTo(null);
+
     try {
       if (imageFile) {
         const storageRef = ref(storage, `chat_images/${Date.now()}_${imageFile.name}`);
@@ -213,19 +225,21 @@ export default function ChatPage() {
         createdAt: Timestamp.now(),
         isEncoded: true,
         ...(imageUrl && { imageUrl }),
+        ...replyingToData,
       };
       setMessages(prev => [...prev, tempMessage]);
 
 
-      const messageToStore = {
+      const messageToStore: Omit<Message, 'id'> = {
         scrambledText: encodedMessageText,
         sender: currentUser,
         createdAt: serverTimestamp(),
         isEncoded: true,
         ...(imageUrl && { imageUrl }),
+        ...replyingToData,
       };
 
-      const docRef = await addDoc(collection(db, "messages"), messageToStore);
+      await addDoc(collection(db, "messages"), messageToStore);
       
       setMessages(prev => prev.filter(m => m.id !== tempId));
       
@@ -285,11 +299,17 @@ export default function ChatPage() {
     }
   };
   
-  const getMessageText = (message: Message) => {
-    if (message.isEncoded) {
-      return decodeMessage(message.scrambledText);
+  const getMessageText = (message: Message, truncate?: number) => {
+    const text = message.isEncoded ? decodeMessage(message.scrambledText) : message.scrambledText;
+    if (truncate && text.length > truncate) {
+      return text.substring(0, truncate) + "...";
     }
-    return message.scrambledText;
+    return text;
+  }
+  
+  const handleReplyClick = (message: Message) => {
+    setReplyingTo(message);
+    inputRef.current?.focus();
   }
 
 
@@ -306,6 +326,7 @@ export default function ChatPage() {
                 {messages.map((message) => (
                   <div
                     key={message.id}
+                    id={message.id}
                     className={cn(
                       "group flex items-start gap-3",
                       message.sender === currentUser
@@ -328,6 +349,12 @@ export default function ChatPage() {
                           : "bg-muted"
                       )}
                     >
+                      {message.replyingToId && (
+                         <a href={`#${message.replyingToId}`} className="block mb-2 p-2 rounded-md bg-black/20 hover:bg-black/30 transition-colors">
+                            <p className="text-xs font-semibold">{message.replyingToSender === currentUser ? 'You' : message.replyingToSender}</p>
+                            <p className="text-xs text-primary-foreground/80">{message.replyingToText}</p>
+                         </a>
+                      )}
                       {message.imageUrl && (
                         <Image
                           src={message.imageUrl}
@@ -352,17 +379,32 @@ export default function ChatPage() {
                         </p>
                       )}
                     </div>
+                     <div className="flex-shrink-0 self-center">
+                        <div className={cn("flex items-center gap-1", message.sender === currentUser ? "flex-row-reverse" : "")}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100"
+                            onClick={() => handleReplyClick(message)}
+                          >
+                            <MessageSquareReply className="h-4 w-4" />
+                            <span className="sr-only">Reply to message</span>
+                          </Button>
+                          {message.sender === currentUser && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={() => setDeletingMessageId(message.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete message</span>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     {message.sender === currentUser && (
                       <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={() => setDeletingMessageId(message.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete message</span>
-                        </Button>
                         <Avatar className="h-8 w-8 shrink-0">
                           <AvatarFallback>
                             <User className="h-5 w-5" />
@@ -377,6 +419,22 @@ export default function ChatPage() {
           </ScrollArea>
         </main>
         <footer className="shrink-0 border-t bg-card p-2 md:p-4">
+           {replyingTo && (
+              <div className="relative rounded-t-lg bg-muted/50 p-2 pl-4 pr-8 text-sm">
+                <p className="font-semibold text-xs text-muted-foreground">
+                  Replying to {replyingTo.sender === currentUser ? 'yourself' : replyingTo.sender}
+                </p>
+                <p className="truncate text-muted-foreground">{getMessageText(replyingTo, 100)}</p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-1/2 right-1 -translate-y-1/2 h-6 w-6"
+                  onClick={() => setReplyingTo(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
            {imagePreview && (
             <div className="relative w-24 h-24 mb-2 ml-2">
               <Image src={imagePreview} alt="Image preview" layout="fill" className="rounded-md object-cover" />
@@ -398,7 +456,7 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
               disabled={isSending}
-              className="max-h-32"
+              className={cn("max-h-32", replyingTo ? "rounded-t-none" : "")}
               rows={1}
             />
             <div className="flex flex-col gap-1">
@@ -512,5 +570,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

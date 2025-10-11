@@ -316,9 +316,6 @@ export default function ChatPage() {
   return (
     <>
       <div className="flex h-screen w-full flex-col bg-background">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4">
-          <h1 className="text-xl font-bold">AgentChat</h1>
-        </header>
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full" ref={scrollAreaRef}>
             <div className="p-4 md:p-6">
@@ -570,5 +567,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

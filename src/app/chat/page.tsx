@@ -126,16 +126,10 @@ export default function ChatPage() {
       }
     };
 
-    const handleBlur = () => {
-      handleLogout();
-    };
-
     window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
     };
   }, [handleLogout]);
 

@@ -120,15 +120,21 @@ export default function ChatPage() {
   }, [router]);
   
   useEffect(() => {
+    const handleBlur = () => {
+      handleLogout();
+    };
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         handleLogout();
       }
     };
 
+    window.addEventListener('blur', handleBlur);
     window.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      window.removeEventListener('blur', handleBlur);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [handleLogout]);
@@ -453,7 +459,7 @@ export default function ChatPage() {
                 <p className="font-semibold text-xs text-muted-foreground">
                   Replying to {getDisplayName(replyingTo.sender) === currentUser ? 'yourself' : getDisplayName(replyingTo.sender)}
                 </p>
-                <p className="truncate text-muted-foreground">{getMessageText(replyingTo, 100)}</p>
+                <p className="truncate text-foreground">{getMessageText(replyingTo, 100)}</p>
                 <Button
                   variant="ghost"
                   size="icon"

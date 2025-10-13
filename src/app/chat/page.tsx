@@ -124,6 +124,7 @@ export default function ChatPage() {
   
   useEffect(() => {
     const handleVisibilityChange = () => {
+      console.log("visiblilty:" + document.visibilityState);
       if (document.visibilityState === 'hidden') {
         handleLogout();
       }

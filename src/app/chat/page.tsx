@@ -110,8 +110,6 @@ export default function ChatPage() {
   const getDisplayName = useCallback((sender: string) => {
     if (sender === 'Crazy') return 'Crazy';
     if (sender === 'Cool') return 'Cool';
-    if (sender === 'user1') return 'Crazy';
-    if (sender === 'user2') return 'Cool';
 
     return sender;
   }, []);
@@ -128,11 +126,17 @@ export default function ChatPage() {
         handleLogout();
       }
     };
+    
+    const handlePageHide = () => {
+        handleLogout();
+    }
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
     };
   }, [handleLogout]);
 
@@ -561,5 +565,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

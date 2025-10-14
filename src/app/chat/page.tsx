@@ -7,14 +7,13 @@ import Image from "next/image";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, User, Smile, Paperclip, X, Trash2, MessageSquareReply } from "lucide-react";
+import { Loader2, Send, Smile, Paperclip, X, Trash2, MessageSquareReply } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
@@ -106,47 +105,46 @@ export default function ChatPage() {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  let isAttachementOpen = false;
+  const isAttachmentOpen = useRef(false);
 
   const getDisplayName = useCallback((sender: string) => {
     if (sender === 'user1') return 'Crazy';
     if (sender === 'user2') return 'Cool';
-    if (sender === 'Crazy_S') return 'Crazy';
-    if (sender === 'Cool_J') return 'Cool';
+    if (sender === 'Crazy') return 'Crazy';
+    if (sender === 'Cool') return 'Cool';
 
     return sender;
   }, []);
 
   const handleLogout = useCallback(() => {
-    console.log("log out called");
-    if(!isAttachementOpen)
+    if(!isAttachmentOpen.current)
     {
-    sessionStorage.removeItem("isAuthenticated");
-    sessionStorage.removeItem("currentUser");
-    router.push("/");
+      sessionStorage.removeItem("isAuthenticated");
+      sessionStorage.removeItem("currentUser");
+      router.push("/");
     }
   }, [router]);
   
   useEffect(() => {
     const handleVisibilityChange = () => {
-      console.log("visiblilty:" + document.visibilityState);
       if (document.visibilityState === 'hidden') {
         handleLogout();
       }
     };
     
-    const handlePageHide = () => {
-      handleLogout();
+    const handlePageHide = (event: PageTransitionEvent) => {
+      // The persisted property is a more reliable way to detect BFCache usage
+      if (!event.persisted) {
+        handleLogout();
+      }
     }
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pagehide', handlePageHide);
-    window.addEventListener('blur', handleLogout);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
-      window.removeEventListener('blur', handleLogout);
     };
   }, [handleLogout]);
 
@@ -213,12 +211,11 @@ export default function ChatPage() {
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
-    isAttachementOpen = false;
+    isAttachmentOpen.current = false;
   };
 
   const handleAttachClick = () => {
-    console.log("opening attachement");
-    isAttachementOpen = true;
+    isAttachmentOpen.current = true;
     fileInputRef.current?.click();
   };
 
@@ -537,6 +534,7 @@ export default function ChatPage() {
               onChange={handleImageChange}
               className="hidden"
               accept="image/*"
+              onCancel={() => { isAttachmentOpen.current = false; }}
             />
           </div>
         </footer>
@@ -564,3 +562,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

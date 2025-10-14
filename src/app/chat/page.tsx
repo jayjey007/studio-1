@@ -110,8 +110,8 @@ export default function ChatPage() {
   const getDisplayName = useCallback((sender: string) => {
     if (sender === 'user1') return 'Crazy';
     if (sender === 'user2') return 'Cool';
-    if (sender === 'Crazy') return 'Crazy';
-    if (sender === 'Cool') return 'Cool';
+    if (sender === 'Crazy_S') return 'Crazy';
+    if (sender === 'Cool_J') return 'Cool';
 
     return sender;
   }, []);

@@ -106,6 +106,7 @@ export default function ChatPage() {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  let isAttachementOpen = false;
 
   const getDisplayName = useCallback((sender: string) => {
     if (sender === 'user1') return 'Crazy';
@@ -117,9 +118,12 @@ export default function ChatPage() {
   }, []);
 
   const handleLogout = useCallback(() => {
+    if(!isAttachementOpen)
+    {
     sessionStorage.removeItem("isAuthenticated");
     sessionStorage.removeItem("currentUser");
     router.push("/");
+    }
   }, [router]);
   
   useEffect(() => {
@@ -208,9 +212,11 @@ export default function ChatPage() {
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
+    isAttachementOpen = false;
   };
 
   const handleAttachClick = () => {
+    isAttachementOpen = true;
     fileInputRef.current?.click();
   };
 

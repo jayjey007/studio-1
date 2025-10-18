@@ -7,7 +7,7 @@ import Image from "next/image";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage, messaging } from "@/lib/firebase";
-import { getToken } from "firebase/messaging";
+import { getToken, Messaging } from "firebase/messaging";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -117,15 +117,24 @@ export default function ChatPage() {
   }, []);
 
   const handleNotificationPermission = async () => {
-    if (!messaging) {
+    if (!currentUser) return;
+    
+    let messagingInstance: Messaging | null = null;
+    try {
+        messagingInstance = await messaging;
+    } catch (error) {
+        console.error("Firebase Messaging not supported:", error);
+    }
+
+
+    if (!messagingInstance) {
       toast({
-        title: "Error",
-        description: "Push notifications are not configured.",
+        title: "Unsupported Browser",
+        description: "Push notifications are not supported on this browser or device.",
         variant: "destructive",
       });
       return;
     }
-    if (!currentUser) return;
 
     try {
       const permission = await Notification.requestPermission();
@@ -137,7 +146,7 @@ export default function ChatPage() {
         });
 
         // Get token
-        const currentToken = await getToken(messaging, { vapidKey: "BKyxbbBcfR_gBHb1j_Y4m3aZgI66L92D5p8Emn9whk5y-Hkt3u9t6p_OGwA3R-3rXk_Z_xWbW-uG-jHkXvI_fDc" });
+        const currentToken = await getToken(messagingInstance, { vapidKey: "BKyxbbBcfR_gBHb1j_Y4m3aZgI66L92D5p8Emn9whk5y-Hkt3u9t6p_OGwA3R-3rXk_Z_xWbW-uG-jHkXvI_fDc" });
         if (currentToken) {
           // Save the token to Firestore
           const tokenRef = doc(db, "fcmTokens", currentToken);
@@ -149,8 +158,8 @@ export default function ChatPage() {
         } else {
           console.log('No registration token available. Request permission to generate one.');
           toast({
-            title: "Error",
-            description: "Could not get push token. Please try again.",
+            title: "Token Error",
+            description: "Could not get push token. This can happen on iOS if the app is not added to the home screen.",
             variant: "destructive",
           });
         }
@@ -164,21 +173,16 @@ export default function ChatPage() {
     } catch (error) {
       console.error('An error occurred while requesting permission ', error);
       toast({
-        title: "Error",
-        description: "An error occurred while enabling notifications.",
+        title: "Permission Error",
+        description: "An error occurred while enabling notifications. Please try again.",
         variant: "destructive",
       });
     }
   };
 
   const getDisplayName = useCallback((sender: string) => {
-    if (sender === 'user1') return 'Crazy';
-    if (sender === 'user2') return 'Cool';
-    if (sender === 'Crazy_S') return 'Crazy';
-    if (sender === 'Cool_J') return 'Cool';
     if (sender === 'Crazy') return 'Crazy';
     if (sender === 'Cool') return 'Cool';
-
     return sender;
   }, []);
 
@@ -235,8 +239,14 @@ export default function ChatPage() {
         const data = doc.data();
         messagesData.push({ 
           id: doc.id, 
+          scrambledText: data.scrambledText,
+          sender: data.sender,
+          createdAt: data.createdAt,
+          imageUrl: data.imageUrl,
           isEncoded: data.isEncoded === undefined ? false : data.isEncoded,
-          ...data 
+          replyingToId: data.replyingToId,
+          replyingToText: data.replyingToText,
+          replyingToSender: data.replyingToSender
         } as Message);
       });
       setMessages(messagesData);
@@ -249,11 +259,13 @@ export default function ChatPage() {
         });
     });
 
-    if (messaging) {
-      navigator.serviceWorker.ready.then((registration) => {
-        console.log("Service Worker ready for messaging.");
-      });
-    }
+    messaging.then(messagingInstance => {
+        if (messagingInstance) {
+            navigator.serviceWorker.ready.then((registration) => {
+                console.log("Service Worker ready for messaging.");
+            });
+        }
+    });
 
     return () => unsubscribe();
   }, [currentUser, toast]);
@@ -346,7 +358,7 @@ export default function ChatPage() {
       
       const recipient = currentUser === 'Cool' ? 'Crazy' : 'Cool';
 
-      const messageToStore: Omit<Message, 'id'> = {
+      const messageToStore: Omit<Message, 'id' | 'scrambledText' | 'sender' | 'isEncoded'> & { sender: string; scrambledText: string; createdAt: any; isEncoded: boolean; imageUrl?: string} = {
         scrambledText: encodedMessageText,
         sender: currentUser,
         createdAt: serverTimestamp(),

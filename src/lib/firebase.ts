@@ -3,7 +3,7 @@ import { initializeApp, getApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth";
-import { getMessaging, isSupported } from "firebase/messaging";
+import { getMessaging, isSupported, Messaging } from "firebase/messaging";
 
 const firebaseConfig = {
   "projectId": "studio-9367397757-f04cc",
@@ -22,7 +22,7 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const auth = getAuth(app);
 
-const messaging = isSupported().then(supported => supported ? getMessaging(app) : null);
+const messaging: Promise<Messaging | null> = isSupported().then(supported => supported ? getMessaging(app) : null);
 
 
 export { db, storage, auth, messaging };

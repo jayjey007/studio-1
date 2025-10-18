@@ -174,7 +174,7 @@ export default function ChatPage() {
       console.error('An error occurred while requesting permission ', error);
       toast({
         title: "Permission Error",
-        description: "An error occurred while enabling notifications. Please try again.",
+        description: "An error occurred while enabling notifications. Please try again." + error,
         variant: "destructive",
       });
     }

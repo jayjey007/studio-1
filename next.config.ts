@@ -41,9 +41,14 @@ const nextConfig: NextConfig = {
     // This is to allow the Next.js development server to be accessed from the
     // Firebase Studio environment.
     allowedDevOrigins: ["*.cloudworkstations.dev"],
+    serverActions: {
+        bodySizeLimit: '4.5mb',
+    }
   },
 };
 
 export default nextConfig;
+
+    
 
     

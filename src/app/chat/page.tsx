@@ -4,19 +4,21 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { db, storage, messaging } from "@/lib/firebase";
+import { getToken } from "firebase/messaging";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Smile, Paperclip, X, Trash2, MessageSquareReply } from "lucide-react";
+import { Loader2, Send, Smile, Paperclip, X, Trash2, MessageSquareReply, Bell } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
+import { sendPushNotification } from "@/ai/flows/send-push-notification";
 
 const EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '❤️', '🎉', '🔥', '🚀', '💯', '🙏', '🤷‍♂️', '🤧', '🥰'];
 
@@ -106,12 +108,76 @@ export default function ChatPage() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const isAttachmentOpen = useRef(false);
+  const [showNotificationButton, setShowNotificationButton] = useState(false);
+
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission !== "granted") {
+      setShowNotificationButton(true);
+    }
+  }, []);
+
+  const handleNotificationPermission = async () => {
+    if (!messaging) {
+      toast({
+        title: "Error",
+        description: "Push notifications are not configured.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentUser) return;
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        setShowNotificationButton(false);
+        toast({
+          title: "Success",
+          description: "Push notifications enabled!",
+        });
+
+        // Get token
+        const currentToken = await getToken(messaging, { vapidKey: "BKyxbbBcfR_gBHb1j_Y4m3aZgI66L92D5p8Emn9whk5y-Hkt3u9t6p_OGwA3R-3rXk_Z_xWbW-uG-jHkXvI_fDc" });
+        if (currentToken) {
+          // Save the token to Firestore
+          const tokenRef = doc(db, "fcmTokens", currentToken);
+          await setDoc(tokenRef, {
+            uid: currentUser,
+            token: currentToken,
+            createdAt: serverTimestamp(),
+          });
+        } else {
+          console.log('No registration token available. Request permission to generate one.');
+          toast({
+            title: "Error",
+            description: "Could not get push token. Please try again.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Info",
+          description: "Push notifications were not enabled.",
+          variant: "default",
+        });
+      }
+    } catch (error) {
+      console.error('An error occurred while requesting permission ', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while enabling notifications.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const getDisplayName = useCallback((sender: string) => {
     if (sender === 'user1') return 'Crazy';
     if (sender === 'user2') return 'Cool';
     if (sender === 'Crazy_S') return 'Crazy';
     if (sender === 'Cool_J') return 'Cool';
+    if (sender === 'Crazy') return 'Crazy';
+    if (sender === 'Cool') return 'Cool';
 
     return sender;
   }, []);
@@ -182,6 +248,13 @@ export default function ChatPage() {
             variant: "destructive",
         });
     });
+
+    if (messaging) {
+      navigator.serviceWorker.ready.then((registration) => {
+        console.log("Service Worker ready for messaging.");
+      });
+    }
+
     return () => unsubscribe();
   }, [currentUser, toast]);
 
@@ -270,6 +343,8 @@ export default function ChatPage() {
         await uploadBytes(storageRef, imageFile);
         imageUrl = await getDownloadURL(storageRef);
       }
+      
+      const recipient = currentUser === 'Cool' ? 'Crazy' : 'Cool';
 
       const messageToStore: Omit<Message, 'id'> = {
         scrambledText: encodedMessageText,
@@ -280,7 +355,15 @@ export default function ChatPage() {
         ...replyingToData,
       };
 
-      await addDoc(collection(db, "messages"), messageToStore);
+      const docRef = await addDoc(collection(db, "messages"), messageToStore);
+
+      // Send push notification
+      await sendPushNotification({
+        recipientUid: recipient,
+        senderName: getDisplayName(currentUser),
+        message: trimmedInput || "Sent an image",
+        messageId: docRef.id
+      });
       
       // The real-time listener will automatically add the confirmed message.
       // We don't need to do anything here on success.
@@ -395,7 +478,7 @@ export default function ChatPage() {
                             "max-w-[75%] rounded-lg p-3 text-sm cursor-pointer",
                             getDisplayName(message.sender) === currentUser
                               ? "bg-primary text-primary-foreground"
-                              : "bg-card border",
+                              : "bg-card text-card-foreground",
                             selectedMessageId === message.id ? (getDisplayName(message.sender) === currentUser ? 'bg-blue-700' : 'bg-muted') : ''
                           )}
                         >
@@ -448,6 +531,13 @@ export default function ChatPage() {
                     </Popover>
                   </div>
                 ))}
+                 {showNotificationButton && (
+                    <div className="flex justify-center p-4">
+                        <Button onClick={handleNotificationPermission}>
+                            <Bell className="mr-2 h-4 w-4" /> Enable Notifications
+                        </Button>
+                    </div>
+                )}
               </div>
             </div>
           </ScrollArea>
@@ -564,3 +654,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

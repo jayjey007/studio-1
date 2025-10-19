@@ -26,5 +26,3 @@ const messaging: Promise<Messaging | null> = isSupported().then(supported => sup
 
 
 export { db, storage, auth, messaging };
-
-    

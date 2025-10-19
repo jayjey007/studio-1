@@ -35,12 +35,6 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      {
-        protocol: 'https',
-        hostname: 'i.pravatar.cc',
-        port: '',
-        pathname: '/**',
-      }
     ],
   },
   experimental: {
@@ -54,7 +48,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
-    
-
-    

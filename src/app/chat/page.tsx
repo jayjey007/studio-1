@@ -374,12 +374,14 @@ export default function ChatPage() {
       const docRef = await addDoc(collection(db, "messages"), messageToStore);
 
       // Send push notification
-      await sendPushNotification({
-        recipientUid: recipient,
-        senderName: getDisplayName(currentUser),
-        message: trimmedInput || "Sent an image",
-        messageId: docRef.id
-      });
+      if(recipient){
+        await sendPushNotification({
+          recipientUid: recipient,
+          senderName: getDisplayName(currentUser),
+          message: trimmedInput || "Sent an image",
+          messageId: docRef.id
+        });
+      }
       
       // The real-time listener will automatically add the confirmed message.
       // We don't need to do anything here on success.
@@ -670,3 +672,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

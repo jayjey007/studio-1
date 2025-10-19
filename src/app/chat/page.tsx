@@ -388,7 +388,7 @@ export default function ChatPage() {
 
     } catch (error: any) {
       console.error("Error sending message:", error);
-      let description = "Could not send message. Please try again.";
+      let description = "Could not send message. Please try again." + error;
       if (error.code === 'storage/unauthorized') {
         description = "You don't have permission to upload images. Please check your Firebase Storage rules."
       } else if (error.code === 'storage/retry-limit-exceeded') {

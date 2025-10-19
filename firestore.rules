@@ -1,124 +1,20 @@
-/**
- * @fileoverview Firestore Security Rules for CipherChat.
- *
- * Core Philosophy:
- * This ruleset enforces a user-centric security model where users can only manage their own profiles
- * and have access to messages sent to or from them. The rules leverage denormalization of senderId
- * and receiverId within the message documents to ensure authorization independence and efficient queries.
- *
- * Data Structure:
- * - /users/{userId}: Stores user profiles, with the document ID matching the user's UID.
- * - /users/{userId}/messages/{messageId}: Stores chat messages associated with a user, both as sender and receiver.
- *
- * Key Security Decisions:
- * - Users can only create, update, or delete their own user documents.
- * - Users can only access chat messages where they are either the sender or the receiver.
- * - List operations on messages are restricted to the owner.
- *
- * Denormalization for Authorization:
- * - Chat messages include both 'senderId' and 'receiverId' to allow direct authorization without additional reads.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * @description Controls access to user profile documents.
-     * @path /users/{userId}
-     * @allow (create) Authenticated user can create their own profile.
-     * @allow (get, update, delete) Authenticated user can access and modify their own profile.
-     * @deny (create) Non-authenticated user cannot create a user profile.
-     * @deny (update, delete) Non-authenticated user cannot modify or delete any user profile.
-     * @deny (get) Non-authenticated user cannot get the user profile.
-     * @principle Enforces document ownership for user profiles.
-     */
-    match /users/{userId} {
-      // Function to check if the user is signed in
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Function to check if the user is the owner of the document
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      // Function to check if the user is an existing owner of the document
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+    // By default, deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    /**
-     * @description Controls access to chat messages sent by a specific user.
-     * @path /users/{senderId}/messages/{messageId}
-     * @allow (create) Authenticated user can create a message under their own ID.
-     * @allow (get, list) Authenticated user can access messages they sent.
-     * @allow (update, delete) Authenticated user can modify/delete their own messages.
-     * @deny (create) Non-authenticated user cannot create messages.
-     * @deny (update, delete) Non-authenticated user cannot modify/delete other's messages.
-     * @principle Enforces ownership for sent chat messages.
-     */
-    match /users/{senderId}/messages/{messageId} {
-      // Function to check if the user is signed in
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Function to check if the user is the owner of the document
-      function isOwner(senderId) {
-        return request.auth.uid == senderId;
-      }
-
-        // Function to check if the user is an existing owner of the document
-      function isExistingOwner(senderId) {
-        return isOwner(senderId) && resource != null;
-      }
-
-      allow get: if isSignedIn() && isOwner(senderId);
-      allow list: if isSignedIn() && isOwner(senderId);
-      allow create: if isSignedIn() && isOwner(senderId) && request.resource.data.senderId == senderId;
-      allow update: if isExistingOwner(senderId) && request.resource.data.senderId == resource.data.senderId;
-      allow delete: if isExistingOwner(senderId);
+    // Allow authenticated users to read and create messages
+    match /messages/{messageId} {
+      allow list, create: if request.auth != null;
+      allow get, update, delete: if request.auth.uid == resource.data.sender;
     }
 
-    /**
-     * @description Controls access to chat messages received by a specific user.
-     * @path /users/{receiverId}/messages/{messageId}
-     * @allow (create) Authenticated user can create a message under their own ID.
-     * @allow (get, list) Authenticated user can access messages they received.
-     * @allow (update, delete) Authenticated user can modify/delete their own messages.
-     * @deny (create) Non-authenticated user cannot create messages.
-     * @deny (update, delete) Non-authenticated user cannot modify/delete other's messages.
-     * @principle Enforces ownership for received chat messages.
-     */
-    match /users/{receiverId}/messages/{messageId} {
-      // Function to check if the user is signed in
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Function to check if the user is the receiver of the document
-      function isReceiver(receiverId) {
-        return request.auth.uid == receiverId;
-      }
-
-         // Function to check if the user is an existing receiver of the document
-      function isExistingReceiver(receiverId) {
-        return isReceiver(receiverId) && resource != null;
-      }
-
-      allow get: if isSignedIn() && isReceiver(receiverId);
-      allow list: if isSignedIn() && isReceiver(receiverId);
-      allow create: if isSignedIn() && request.resource.data.receiverId == receiverId;
-      allow update: if isExistingReceiver(receiverId) && request.resource.data.receiverId == resource.data.receiverId;
-      allow delete: if isExistingReceiver(receiverId);
+    // Allow users to manage their own FCM tokens
+    match /fcmTokens/{token} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
     }
   }
 }

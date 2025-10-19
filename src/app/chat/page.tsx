@@ -4,16 +4,16 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, setDoc } from "firebase/firestore";
-import { db, messaging } from "@/lib/firebase";
-import { getToken, Messaging } from "firebase/messaging";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp } from "firebase/firestore";
+import { db, storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Bell } from "lucide-react";
+import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
@@ -29,6 +29,7 @@ interface Message {
   replyingToId?: string;
   replyingToText?: string;
   replyingToSender?: string;
+  imageUrl?: string;
 }
 
 // Simple Caesar cipher for encoding
@@ -97,81 +98,18 @@ export default function ChatPage() {
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [showNotificationButton, setShowNotificationButton] = useState(false);
 
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission !== "granted") {
-      setShowNotificationButton(true);
-    }
-  }, []);
-
-  const handleNotificationPermission = async () => {
-    if (!currentUser) return;
-    
-    const messagingInstance = await messaging;
-    
-    if (!messagingInstance) {
-      toast({
-        title: "Unsupported Browser",
-        description: "Push notifications are not supported on this browser or device.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        setShowNotificationButton(false);
-        toast({
-          title: "Success",
-          description: "Push notifications enabled!",
-        });
-
-        const currentToken = await getToken(messagingInstance, { vapidKey: "YOUR_VAPID_KEY_HERE" });
-        if (currentToken) {
-          const tokenRef = doc(db, "fcmTokens", currentUser);
-          await setDoc(tokenRef, {
-            uid: currentUser,
-            token: currentToken,
-            createdAt: serverTimestamp(),
-          });
-        } else {
-          console.log('No registration token available. Request permission to generate one.');
-          toast({
-            title: "Token Error",
-            description: "Could not get push token. This can happen on iOS if the app is not added to the home screen.",
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({
-          title: "Info",
-          description: "Push notifications were not enabled.",
-          variant: "default",
-        });
-      }
-    } catch (error) {
-      console.error('An error occurred while requesting permission ', error);
-      toast({
-        title: "Permission Error",
-        description: "An error occurred while enabling notifications. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const getDisplayName = useCallback((sender: string) => {
     if (sender === 'Crazy') return 'Crazy';
     if (sender === 'Cool') return 'Cool';
-    if (sender === 'user1') return 'Crazy';
-    if (sender === 'user2') return 'Cool';
-    if (sender === 'Crazy_S') return 'Crazy';
-    if (sender === 'Cool_J') return 'Cool';
     return sender;
   }, []);
 
@@ -227,10 +165,11 @@ export default function ChatPage() {
           scrambledText: data.scrambledText,
           sender: data.sender,
           createdAt: data.createdAt,
-          isEncoded: data.isEncoded === undefined ? false : data.isEncoded,
+          isEncoded: data.isEncoded === undefined ? true : data.isEncoded,
           replyingToId: data.replyingToId,
           replyingToText: data.replyingToText,
-          replyingToSender: data.replyingToSender
+          replyingToSender: data.replyingToSender,
+          imageUrl: data.imageUrl,
         } as Message);
       });
       setMessages(messagesData);
@@ -246,21 +185,21 @@ export default function ChatPage() {
     return () => unsubscribe();
   }, [currentUser, toast]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     const scrollArea = scrollAreaRef.current;
     if (scrollArea) {
       const viewport = scrollArea.querySelector('div[data-radix-scroll-area-viewport]');
       if (viewport) {
         setTimeout(() => {
           viewport.scrollTop = viewport.scrollHeight;
-        }, 0);
+        }, 100);
       }
     }
-  }
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
 
   const handleEmojiClick = (emoji: string) => {
@@ -268,40 +207,73 @@ export default function ChatPage() {
     inputRef.current?.focus();
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const cancelImagePreview = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+  
   const handleSend = async () => {
     const trimmedInput = input.trim();
-    if (!trimmedInput || !currentUser) return;
+    if (!trimmedInput && !imageFile) return;
+    if (!currentUser) return;
   
     setIsSending(true);
     
-    const encodedMessageText = encodeMessage(trimmedInput);
-  
-    const replyingToData = replyingTo ? {
-      replyingToId: replyingTo.id,
-      replyingToText: getMessageText(replyingTo, 50),
-      replyingToSender: getDisplayName(replyingTo.sender),
-    } : {};
-    
-    setInput("");
-    setReplyingTo(null);
-    setSelectedMessageId(null);
-  
     try {
-      const messageToStore = {
+      let imageUrl: string | undefined = undefined;
+  
+      if (imageFile) {
+        const imageRef = ref(storage, `chat_images/${currentUser}_${Date.now()}_${imageFile.name}`);
+        const snapshot = await uploadBytes(imageRef, imageFile);
+        imageUrl = await getDownloadURL(snapshot.ref);
+      }
+  
+      const encodedMessageText = encodeMessage(trimmedInput);
+    
+      const replyingToData = replyingTo ? {
+        replyingToId: replyingTo.id,
+        replyingToText: getMessageText(replyingTo, 50),
+        replyingToSender: getDisplayName(replyingTo.sender),
+      } : {};
+      
+      const messageToStore: Omit<Message, 'id' | 'createdAt'> & { createdAt: any } = {
         scrambledText: encodedMessageText,
         sender: currentUser,
         createdAt: serverTimestamp(),
         isEncoded: true,
         ...replyingToData,
       };
+
+      if (imageUrl) {
+        messageToStore.imageUrl = imageUrl;
+      }
   
       await addDoc(collection(db, "messages"), messageToStore);
+
+      setInput("");
+      setReplyingTo(null);
+      cancelImagePreview();
       
     } catch (error: any) {
       console.error("Error sending message:", error);
       let description = "Could not send message. Please try again.";
-      if (error.code === 'permission-denied') {
-        description = "You don't have permission to send messages. Please check your Firestore rules."
+      if (error.code === 'permission-denied' || error.code === 'storage/unauthorized') {
+        description = "You don't have permission to send messages or upload files. Please check your security rules."
       }
   
       toast({
@@ -309,8 +281,6 @@ export default function ChatPage() {
         description: description,
         variant: "destructive",
       });
-      // Restore input if sending failed
-      setInput(trimmedInput);
     } finally {
         setIsSending(false);
         if (inputRef.current) {
@@ -375,6 +345,16 @@ export default function ChatPage() {
   return (
     <>
       <div className="flex h-screen w-full flex-col bg-background">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b px-4 md:px-6">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 font-semibold">
+              <span className="text-lg">CipherChat</span>
+            </div>
+          </div>
+          <Button variant="outline" onClick={handleLogout}>
+            Logout
+          </Button>
+        </header>
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full" ref={scrollAreaRef}>
             <div className="p-4 md:p-6" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
@@ -385,11 +365,20 @@ export default function ChatPage() {
                     id={message.id}
                     className={cn(
                       "group flex w-full items-start gap-3",
-                      getDisplayName(message.sender) === currentUser
+                      getDisplayName(message.sender) === getDisplayName(currentUser!)
                         ? "justify-end"
                         : "justify-start"
                     )}
                   >
+                     {getDisplayName(message.sender) !== getDisplayName(currentUser!) && (
+                        <Image
+                        src={`https://i.pravatar.cc/40?u=${message.sender}`}
+                        alt="Avatar"
+                        width={40}
+                        height={40}
+                        className="rounded-full"
+                        />
+                    )}
                     <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
                       if (!isOpen) setSelectedMessageId(null);
                     }}>
@@ -401,24 +390,36 @@ export default function ChatPage() {
                           }}
                           className={cn(
                             "max-w-[75%] rounded-lg p-3 text-sm cursor-pointer",
-                            getDisplayName(message.sender) === currentUser
+                            getDisplayName(message.sender) === getDisplayName(currentUser!)
                               ? "bg-primary text-primary-foreground"
                               : "bg-card text-card-foreground",
-                            selectedMessageId === message.id ? (getDisplayName(message.sender) === currentUser ? 'bg-blue-700' : 'bg-muted') : ''
+                            selectedMessageId === message.id ? (getDisplayName(message.sender) === getDisplayName(currentUser!) ? 'bg-blue-700' : 'bg-muted') : ''
                           )}
                         >
                           {message.replyingToId && message.replyingToSender && (
                               <a href={`#${message.replyingToId}`} className="block mb-2 p-2 rounded-md bg-black/20 hover:bg-black/30 transition-colors">
-                                  <p className="text-xs font-semibold">{getDisplayName(message.replyingToSender) === currentUser ? 'You' : getDisplayName(message.replyingToSender)}</p>
+                                  <p className="text-xs font-semibold">{getDisplayName(message.replyingToSender) === getDisplayName(currentUser!) ? 'You' : getDisplayName(message.replyingToSender)}</p>
                                   <p className="text-xs text-foreground/90">{message.replyingToText}</p>
                               </a>
                           )}
+                           {message.imageUrl && (
+                              <div className="mb-2">
+                                <Image
+                                  src={message.imageUrl}
+                                  alt="Attached image"
+                                  width={300}
+                                  height={300}
+                                  className="max-w-full h-auto rounded-md"
+                                  onLoad={scrollToBottom}
+                                />
+                              </div>
+                            )}
                           <LinkifiedText text={getMessageText(message)} />
                           {message.createdAt && (
                               <p
                               className={cn(
                                   "text-xs mt-1",
-                                  getDisplayName(message.sender) === currentUser
+                                  getDisplayName(message.sender) === getDisplayName(currentUser!)
                                   ? "text-primary-foreground/70"
                                   : "text-muted-foreground/70"
                               )}
@@ -433,7 +434,7 @@ export default function ChatPage() {
                           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleReplyClick(message)}>
                               <MessageSquareReply className="h-4 w-4" />
                           </Button>
-                          {getDisplayName(message.sender) === currentUser && (
+                          {getDisplayName(message.sender) === getDisplayName(currentUser!) && (
                               <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => {
                                 setDeletingMessageId(message.id);
                                 setSelectedMessageId(null);
@@ -444,24 +445,26 @@ export default function ChatPage() {
                         </div>
                       </PopoverContent>
                     </Popover>
+                    {getDisplayName(message.sender) === getDisplayName(currentUser!) && (
+                        <Image
+                        src={`https://i.pravatar.cc/40?u=${message.sender}`}
+                        alt="Avatar"
+                        width={40}
+                        height={40}
+                        className="rounded-full"
+                        />
+                    )}
                   </div>
                 ))}
-                 {showNotificationButton && (
-                    <div className="flex justify-center p-4">
-                        <Button onClick={handleNotificationPermission}>
-                            <Bell className="mr-2 h-4 w-4" /> Enable Notifications
-                        </Button>
-                    </div>
-                )}
               </div>
             </div>
           </ScrollArea>
         </main>
         <footer className="shrink-0 border-t bg-card p-2 md:p-4">
-           {replyingTo && (
+           {replyingTo && !imagePreview && (
               <div className="relative rounded-t-lg bg-muted/50 p-2 pl-4 pr-8 text-sm">
                 <p className="font-semibold text-xs text-muted-foreground">
-                  Replying to {getDisplayName(replyingTo.sender) === currentUser ? 'yourself' : getDisplayName(replyingTo.sender)}
+                  Replying to {getDisplayName(replyingTo.sender) === getDisplayName(currentUser!) ? 'yourself' : getDisplayName(replyingTo.sender)}
                 </p>
                 <p className="truncate text-foreground">{getMessageText(replyingTo, 100)}</p>
                 <Button
@@ -474,7 +477,43 @@ export default function ChatPage() {
                 </Button>
               </div>
             )}
+             {imagePreview && (
+              <div className="relative rounded-t-lg bg-muted/50 p-2">
+                <Image
+                  src={imagePreview}
+                  alt="Image preview"
+                  width={80}
+                  height={80}
+                  className="h-20 w-20 rounded-md object-cover"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-1 right-1 h-6 w-6"
+                  onClick={cancelImagePreview}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           <div className="flex items-end gap-2">
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                accept="image/*"
+            />
+             <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSending}
+              >
+                <Paperclip className="h-4 w-4" />
+                <span className="sr-only">Attach File</span>
+              </Button>
             <Popover>
                 <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
@@ -505,7 +544,7 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
               disabled={isSending}
-              className={cn("max-h-32", replyingTo ? "rounded-t-none" : "")}
+              className={cn("max-h-32", (replyingTo || imagePreview) ? "rounded-t-none" : "")}
               rows={1}
             />
             <Button
@@ -513,7 +552,7 @@ export default function ChatPage() {
                 size="icon"
                 className="h-10 w-10 shrink-0"
                 onClick={handleSend}
-                disabled={isSending || !input.trim()}
+                disabled={isSending || (!input.trim() && !imageFile)}
             >
                 {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
                 <span className="sr-only">Send</span>
@@ -544,3 +583,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

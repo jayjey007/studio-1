@@ -358,8 +358,6 @@ export default function ChatPage() {
         await uploadBytes(storageRef, imageFile);
         imageUrl = await getDownloadURL(storageRef);
       }
-      
-      const recipient = currentUser === 'Cool' ? 'Crazy' : 'Cool';
 
       const messageToStore: Omit<Message, 'id' | 'scrambledText' | 'sender' | 'isEncoded'> & { sender: string; scrambledText: string; createdAt: any; isEncoded: boolean; imageUrl?: string} = {
         scrambledText: encodedMessageText,
@@ -377,11 +375,13 @@ export default function ChatPage() {
 
     } catch (error: any) {
       console.error("Error sending message:", error);
-      let description = "Could not send message. Please try again." + error;
+      let description = "Could not send message. Please try again.";
       if (error.code === 'storage/unauthorized') {
         description = "You don't have permission to upload images. Please check your Firebase Storage rules."
       } else if (error.code === 'storage/retry-limit-exceeded') {
         description = "Network error: Could not upload image. Please check your connection and Firebase Storage rules."
+      } else if (error.code === 'permission-denied') {
+        description = "You don't have permission to send messages. Please check your Firestore rules."
       }
 
       toast({
@@ -661,3 +661,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

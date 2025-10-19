@@ -139,7 +139,7 @@ export default function ChatPage() {
         });
 
         // Get token
-        const currentToken = await getToken(messagingInstance, { vapidKey: "BL8V7BHhy6nE9WICeE09mNiKFC1u71vroAb3p7JyjFpI5n05yZvMx84o14MFE4O3944a8IDYKyh0dzR1bm5PouU" });
+        const currentToken = await getToken(messagingInstance, { vapidKey: "YOUR_VAPID_KEY_HERE" });
         if (currentToken) {
           // Save the token to Firestore
           const tokenRef = doc(db, "fcmTokens", currentToken);
@@ -308,8 +308,6 @@ export default function ChatPage() {
     if ((!trimmedInput && !imageFile) || !currentUser) return;
   
     setIsSending(true);
-    setInput("");
-    removeImage();
     
     const tempId = `temp_${Date.now()}`;
     const encodedMessageText = encodeMessage(trimmedInput);
@@ -320,8 +318,6 @@ export default function ChatPage() {
       replyingToSender: getDisplayName(replyingTo.sender),
     } : {};
     
-    setReplyingTo(null);
-  
     // Create a temporary message for optimistic UI update
     const tempMessage: Message = {
       id: tempId,
@@ -334,6 +330,9 @@ export default function ChatPage() {
     };
     
     setMessages(prev => [...prev, tempMessage]);
+    setInput("");
+    removeImage();
+    setReplyingTo(null);
     setSelectedMessageId(null);
   
     try {
@@ -353,7 +352,12 @@ export default function ChatPage() {
         ...replyingToData,
       };
   
-      await addDoc(collection(db, "messages"), messageToStore);
+      const docRef = await addDoc(collection(db, "messages"), messageToStore);
+      
+      // Since we optimistically added the image preview, we might want to replace it
+      // with the final URL, but for simplicity we'll just let the real-time listener handle the update.
+      // We'll remove the temp message and the listener will add the permanent one.
+      setMessages(prev => prev.filter(m => m.id !== tempId));
       
     } catch (error: any) {
       console.error("Error sending message:", error);

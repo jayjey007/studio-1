@@ -1,4 +1,6 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     // By default, deny all reads and writes
@@ -9,12 +11,7 @@ service cloud.firestore {
     // Allow authenticated users to read and create messages
     match /messages/{messageId} {
       allow list, create: if request.auth != null;
-      allow get, update, delete: if request.auth.uid == resource.data.sender;
-    }
-
-    // Allow users to manage their own FCM tokens
-    match /fcmTokens/{token} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow delete: if request.auth != null && resource.data.sender == request.auth.uid;
     }
   }
 }

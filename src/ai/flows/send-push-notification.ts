@@ -6,9 +6,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import * as admin from 'firebase-admin';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { getMessaging } from "firebase-admin/messaging";
 
 const SendPushNotificationInputSchema = z.object({
   recipientUid: z.string().describe('The UID of the user to send the notification to.'),
@@ -19,13 +16,6 @@ const SendPushNotificationInputSchema = z.object({
 
 export type SendPushNotificationInput = z.infer<typeof SendPushNotificationInputSchema>;
 
-// Initialize admin SDK only if it hasn't been initialized yet.
-if (admin.apps.length === 0) {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      projectId: "studio-9367397757-f04cc",
-    });
-}
 
 export async function sendPushNotification(input: SendPushNotificationInput): Promise<void> {
   return sendPushNotificationFlow(input);
@@ -44,6 +34,18 @@ const sendPushNotificationFlow = ai.defineFlow(
     outputSchema: z.void(),
   },
   async ({recipientUid, senderName, message, messageId}) => {
+    // Import and initialize admin SDK inside the flow to avoid Next.js server-side issues.
+    const admin = await import('firebase-admin');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    const { getMessaging } = await import('firebase-admin/messaging');
+
+    if (admin.apps.length === 0) {
+        admin.initializeApp({
+          credential: admin.credential.applicationDefault(),
+          projectId: "studio-9367397757-f04cc",
+        });
+    }
+
     const firestore = getFirestore();
     const messaging = getMessaging();
 

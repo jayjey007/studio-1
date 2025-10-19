@@ -5,8 +5,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, setDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage, messaging } from "@/lib/firebase";
+import { db, messaging } from "@/lib/firebase";
 import { getToken, Messaging } from "firebase/messaging";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Smile, Paperclip, X, Trash2, MessageSquareReply, Bell } from "lucide-react";
+import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Bell } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
@@ -26,7 +25,6 @@ interface Message {
   scrambledText: string;
   sender: string;
   createdAt: Timestamp;
-  imageUrl?: string;
   isEncoded: boolean;
   replyingToId?: string;
   replyingToText?: string;
@@ -94,19 +92,15 @@ export default function ChatPage() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const isAttachmentOpen = useRef(false);
   const [showNotificationButton, setShowNotificationButton] = useState(false);
 
   useEffect(() => {
@@ -138,11 +132,9 @@ export default function ChatPage() {
           description: "Push notifications enabled!",
         });
 
-        // Get token
         const currentToken = await getToken(messagingInstance, { vapidKey: "YOUR_VAPID_KEY_HERE" });
         if (currentToken) {
-          // Save the token to Firestore
-          const tokenRef = doc(db, "fcmTokens", currentToken);
+          const tokenRef = doc(db, "fcmTokens", currentUser);
           await setDoc(tokenRef, {
             uid: currentUser,
             token: currentToken,
@@ -184,12 +176,9 @@ export default function ChatPage() {
   }, []);
 
   const handleLogout = useCallback(() => {
-    if(!isAttachmentOpen.current)
-    {
-      sessionStorage.removeItem("isAuthenticated");
-      sessionStorage.removeItem("currentUser");
-      router.push("/");
-    }
+    sessionStorage.removeItem("isAuthenticated");
+    sessionStorage.removeItem("currentUser");
+    router.push("/");
   }, [router]);
   
   useEffect(() => {
@@ -200,7 +189,6 @@ export default function ChatPage() {
     };
     
     const handlePageHide = (event: PageTransitionEvent) => {
-      // The persisted property is a more reliable way to detect BFCache usage
       if (!event.persisted) {
         handleLogout();
       }
@@ -239,7 +227,6 @@ export default function ChatPage() {
           scrambledText: data.scrambledText,
           sender: data.sender,
           createdAt: data.createdAt,
-          imageUrl: data.imageUrl,
           isEncoded: data.isEncoded === undefined ? false : data.isEncoded,
           replyingToId: data.replyingToId,
           replyingToText: data.replyingToText,
@@ -281,35 +268,12 @@ export default function ChatPage() {
     inputRef.current?.focus();
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
-    isAttachmentOpen.current = false;
-  };
-
-  const handleAttachClick = () => {
-    isAttachmentOpen.current = true;
-    fileInputRef.current?.click();
-  };
-
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    if(fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
   const handleSend = async () => {
     const trimmedInput = input.trim();
-    if ((!trimmedInput && !imageFile) || !currentUser) return;
+    if (!trimmedInput || !currentUser) return;
   
     setIsSending(true);
     
-    const tempId = `temp_${Date.now()}`;
     const encodedMessageText = encodeMessage(trimmedInput);
   
     const replyingToData = replyingTo ? {
@@ -318,55 +282,25 @@ export default function ChatPage() {
       replyingToSender: getDisplayName(replyingTo.sender),
     } : {};
     
-    // Create a temporary message for optimistic UI update
-    const tempMessage: Message = {
-      id: tempId,
-      scrambledText: encodedMessageText,
-      sender: currentUser,
-      createdAt: Timestamp.now(),
-      isEncoded: true,
-      imageUrl: imagePreview || undefined,
-      ...replyingToData,
-    };
-    
-    setMessages(prev => [...prev, tempMessage]);
     setInput("");
-    removeImage();
     setReplyingTo(null);
     setSelectedMessageId(null);
   
     try {
-      let imageUrl: string | undefined = undefined;
-      if (imageFile) {
-        const storageRef = ref(storage, `chat_images/${Date.now()}_${imageFile.name}`);
-        const uploadTask = await uploadBytes(storageRef, imageFile);
-        imageUrl = await getDownloadURL(uploadTask.ref);
-      }
-  
       const messageToStore = {
         scrambledText: encodedMessageText,
         sender: currentUser,
         createdAt: serverTimestamp(),
         isEncoded: true,
-        ...(imageUrl && { imageUrl }),
         ...replyingToData,
       };
   
-      const docRef = await addDoc(collection(db, "messages"), messageToStore);
-      
-      // Since we optimistically added the image preview, we might want to replace it
-      // with the final URL, but for simplicity we'll just let the real-time listener handle the update.
-      // We'll remove the temp message and the listener will add the permanent one.
-      setMessages(prev => prev.filter(m => m.id !== tempId));
+      await addDoc(collection(db, "messages"), messageToStore);
       
     } catch (error: any) {
       console.error("Error sending message:", error);
       let description = "Could not send message. Please try again.";
-      if (error.code === 'storage/unauthorized') {
-        description = "You don't have permission to upload images. Please check your Firebase Storage rules."
-      } else if (error.code === 'storage/retry-limit-exceeded') {
-        description = "Network error: Could not upload image. Please check your connection."
-      } else if (error.code === 'permission-denied') {
+      if (error.code === 'permission-denied') {
         description = "You don't have permission to send messages. Please check your Firestore rules."
       }
   
@@ -375,11 +309,10 @@ export default function ChatPage() {
         description: description,
         variant: "destructive",
       });
-      // If there was an error, remove the optimistic message
-      setMessages(prev => prev.filter(m => m.id !== tempId));
+      // Restore input if sending failed
+      setInput(trimmedInput);
     } finally {
         setIsSending(false);
-        // Reset textarea height
         if (inputRef.current) {
             inputRef.current.style.height = "auto";
         }
@@ -480,16 +413,6 @@ export default function ChatPage() {
                                   <p className="text-xs text-foreground/90">{message.replyingToText}</p>
                               </a>
                           )}
-                          {message.imageUrl && (
-                              <Image
-                              src={message.imageUrl}
-                              alt="Chat image"
-                              width={300}
-                              height={200}
-                              className="rounded-md mb-2 object-cover"
-                              onLoad={scrollToBottom}
-                              />
-                          )}
                           <LinkifiedText text={getMessageText(message)} />
                           {message.createdAt && (
                               <p
@@ -551,23 +474,7 @@ export default function ChatPage() {
                 </Button>
               </div>
             )}
-           {imagePreview && (
-            <div className="relative w-24 h-24 mb-2 ml-2">
-              <Image src={imagePreview} alt="Image preview" layout="fill" className="rounded-md object-cover" />
-              <Button
-                variant="destructive"
-                size="icon"
-                className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                onClick={removeImage}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
           <div className="flex items-end gap-2">
-            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttachClick}>
-                <Paperclip className="h-4 w-4" />
-            </Button>
             <Popover>
                 <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
@@ -606,20 +513,11 @@ export default function ChatPage() {
                 size="icon"
                 className="h-10 w-10 shrink-0"
                 onClick={handleSend}
-                disabled={isSending || (!input.trim() && !imageFile)}
+                disabled={isSending || !input.trim()}
             >
                 {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
                 <span className="sr-only">Send</span>
             </Button>
-            
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageChange}
-              className="hidden"
-              accept="image/*"
-              onCancel={() => { isAttachmentOpen.current = false; }}
-            />
           </div>
         </footer>
       </div>

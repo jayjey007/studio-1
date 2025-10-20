@@ -30,7 +30,7 @@ interface Message {
   isEncoded: boolean;
   replyingToId?: string;
   replyingToText?: string;
-or?: string;
+  replyingToSender?: string;
   imageUrl?: string;
 }
 
@@ -244,72 +244,74 @@ export default function ChatPage() {
     const trimmedInput = input.trim();
     if (!trimmedInput && !imageFile) return;
     if (!currentUser || !db || !storage) return;
-  
+
     setIsSending(true);
-  
+
     try {
       let imageUrl: string | undefined = undefined;
-  
+
       if (imageFile) {
         const imageRef = ref(storage, `chat_images/${currentUser}_${Date.now()}_${imageFile.name}`);
         const snapshot = await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(snapshot.ref);
       }
-  
-      const messageTextToSend = trimmedInput || ' '; 
+
+      const messageTextToSend = trimmedInput || ' ';
       const encodedMessageText = encodeMessage(messageTextToSend);
-      
+
       const replyingToData = replyingTo ? {
-          replyingToId: replyingTo.id,
-          replyingToText: getMessageText(replyingTo, 50),
-          replyingToSender: getDisplayName(replyingTo.sender),
+        replyingToId: replyingTo.id,
+        replyingToText: getMessageText(replyingTo, 50),
+        replyingToSender: getDisplayName(replyingTo.sender),
       } : {};
-      
+
       const messageToStore: Omit<Message, 'id' | 'createdAt'> & { createdAt: any } = {
-          scrambledText: encodedMessageText,
-          sender: currentUser,
-          createdAt: serverTimestamp(),
-          isEncoded: true,
-          ...replyingToData,
+        scrambledText: encodedMessageText,
+        sender: currentUser,
+        createdAt: serverTimestamp(),
+        isEncoded: true,
+        ...replyingToData,
       };
-  
+
       if (imageUrl) {
-          messageToStore.imageUrl = imageUrl;
+        messageToStore.imageUrl = imageUrl;
       }
-  
+
       const docRef = await addDoc(collection(db, "messages"), messageToStore);
       await sendNotification({
         message: messageTextToSend,
         sender: currentUser,
         messageId: docRef.id
       });
-  
+
       setInput("");
       setReplyingTo(null);
       cancelImagePreview();
-  
+
     } catch (error: any) {
       console.error("Error sending message:", error);
       let description = `Could not send message. Please try again. ${error.message}`;
-      
+
       if (error.code) {
         switch (error.code) {
           case 'storage/unauthorized':
-          case 'storage/object-not-found':
             description = "You don't have permission to upload files. Please check storage security rules.";
+            break;
+          case 'storage/no-default-bucket':
+            description = "Storage bucket not configured. Please check your Firebase project setup.";
             break;
           case 'permission-denied':
             description = "You don't have permission to send messages. Please check Firestore security rules.";
             break;
           default:
-            description = `An unexpected error occurred: ${error.code}`;
+            description = `An unexpected error occurred: ${error.code} - ${error.message}`;
         }
       }
-  
+
       toast({
-          title: "Error Sending Message",
-          description: description,
-          variant: "destructive",
+        title: "Error Sending Message",
+        description: description,
+        variant: "destructive",
       });
     } finally {
       setIsSending(false);
@@ -360,7 +362,7 @@ export default function ChatPage() {
   
   const handleReplyClick = (message: Message) => {
     setReplyingTo(message);
-setSelectedMessageId(null);
+    setSelectedMessageId(null);
     inputRef.current?.focus();
   }
 
@@ -388,7 +390,7 @@ setSelectedMessageId(null);
 
       if (permission === 'granted') {
         toast({ title: "Success", description: "Notification permission granted." });
-        const fcmToken = await getToken(messaging, { vapidKey: process.env.NEXT_PUBLIC_VAPID_KEY });
+        const fcmToken = await getToken(messaging, { vapidKey: 'BL8V7BHhy6nE9WICeE09mNiKFC1u71vroAb3p7JyjFpI5n05yZvMx84o14MFE4O3944a8IDYKyh0dzR1bm5PouU' });
 
         if (fcmToken) {
           const tokenRef = doc(db, 'fcmTokens', currentUser);

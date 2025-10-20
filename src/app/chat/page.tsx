@@ -356,13 +356,12 @@ export default function ChatPage() {
   return (
     <>
       <div className="flex h-screen w-full flex-col bg-background">
-        <header className="shrink-0 border-b bg-card p-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold">CipherChat</h1>
-          <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
-        </header>
+         <div className="absolute top-2 right-2 z-10">
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full" ref={scrollAreaRef}>
             <div className="p-4 md:p-6" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
@@ -574,7 +573,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    
-
-    

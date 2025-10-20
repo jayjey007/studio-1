@@ -107,6 +107,8 @@ export default function ChatPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  const isFilePickerOpen = useRef(false);
+
   const getDisplayName = useCallback((sender: string) => {
     if (sender === 'Crazy') return 'Crazy';
     if (sender === 'Cool') return 'Cool';
@@ -129,6 +131,31 @@ export default function ChatPage() {
     }
   }, [router]);
   
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      // Don't log out if the file picker is the reason for the blur
+      if (isFilePickerOpen.current) {
+        return;
+      }
+      handleLogout();
+    };
+
+    const handleWindowFocus = () => {
+      // Reset the flag when the window regains focus
+      if (isFilePickerOpen.current) {
+        isFilePickerOpen.current = false;
+      }
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [handleLogout]);
+
   useEffect(() => {
     if (!currentUser) return;
     const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
@@ -193,6 +220,13 @@ export default function ChatPage() {
       };
       reader.readAsDataURL(file);
     }
+    // The window will regain focus now, so the focus handler will reset the ref.
+  };
+  
+  const handleAttachClick = () => {
+    // Set the flag right before opening the file picker
+    isFilePickerOpen.current = true;
+    fileInputRef.current?.click();
   };
 
   const cancelImagePreview = () => {
@@ -345,15 +379,6 @@ export default function ChatPage() {
                         : "justify-start"
                     )}
                   >
-                     {getDisplayName(message.sender) !== getDisplayName(currentUser!) && (
-                      <Image
-                        src={`https://i.pravatar.cc/40?u=${message.sender}`}
-                        alt="Avatar"
-                        width={40}
-                        height={40}
-                        className="rounded-full"
-                      />
-                    )}
                     <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
                       if (!isOpen) setSelectedMessageId(null);
                     }}>
@@ -420,15 +445,6 @@ export default function ChatPage() {
                         </div>
                       </PopoverContent>
                     </Popover>
-                    {getDisplayName(message.sender) === getDisplayName(currentUser!) && (
-                      <Image
-                        src={`https://i.pravatar.cc/40?u=${message.sender}`}
-                        alt="Avatar"
-                        width={40}
-                        height={40}
-                        className="rounded-full"
-                      />
-                    )}
                   </div>
                 ))}
               </div>
@@ -483,7 +499,7 @@ export default function ChatPage() {
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 shrink-0"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={handleAttachClick}
                 disabled={isSending}
               >
                 <Paperclip className="h-4 w-4" />
@@ -558,5 +574,7 @@ export default function ChatPage() {
     </>
   );
 }
+
+    
 
     

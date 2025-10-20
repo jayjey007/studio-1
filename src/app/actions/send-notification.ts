@@ -11,6 +11,19 @@ interface sendNotificationProps {
     messageId: string;
 }
 
+const randomFacts = [
+    "A single cloud can weigh more than 1 million pounds.",
+    "A group of flamingos is called a 'flamboyance'.",
+    "The inventor of the frisbee was turned into a frisbee after he died.",
+    "Honey never spoils.",
+    "There are more fake flamingos in the world than real ones.",
+    "A shrimp's heart is in its head.",
+    "It is impossible for most people to lick their own elbow.",
+    "A crocodile cannot stick its tongue out.",
+    "The national animal of Scotland is the unicorn.",
+    "Sea otters hold hands when they sleep so they don't float away."
+];
+
 export async function sendNotification({ message, sender, messageId }: sendNotificationProps) {
     const adminApp = await initializeAdminApp();
     if (!adminApp) {
@@ -42,11 +55,13 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         console.log(`FCM token is empty for user: ${recipient}`);
         return;
     }
+    
+    const randomFact = randomFacts[Math.floor(Math.random() * randomFacts.length)];
 
     const payload = {
         notification: {
-            title: `New message from ${sender}`,
-            body: message,
+            title: 'news',
+            body: randomFact,
         },
         webpush: {
             fcm_options: {

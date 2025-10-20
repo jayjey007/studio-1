@@ -60,7 +60,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
 
     const payload = {
         notification: {
-            title: 'news',
+            title: 'Fun facts',
             body: randomFact,
         },
         webpush: {

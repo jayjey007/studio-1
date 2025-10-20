@@ -314,7 +314,7 @@ export default function ChatPage() {
       console.error("Error deleting message:", error);
       toast({
         title: "Error",
-        description: "Could not delete message. Please try again.",
+        description: "Could not delete message. Please check your permissions.",
         variant: "destructive",
       });
     } finally {

@@ -5,7 +5,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp } from "firebase/firestore";
-import { db, storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Paperclip, LogOut } from "lucide-react";
 import { format } from "date-fns";
+import { useFirebase } from "@/firebase/provider";
 
 import { cn } from "@/lib/utils";
 
@@ -91,6 +91,7 @@ const LinkifiedText = ({ text }: { text: string }) => {
 
 export default function ChatPage() {
   const router = useRouter();
+  const { firestore: db, storage } = useFirebase();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -157,7 +158,7 @@ export default function ChatPage() {
   }, [handleLogout]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !db) return;
     const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const messagesData: Message[] = [];
@@ -186,7 +187,7 @@ export default function ChatPage() {
     });
 
     return () => unsubscribe();
-  }, [currentUser, toast]);
+  }, [currentUser, db, toast]);
 
   const scrollToBottom = useCallback(() => {
     const scrollArea = scrollAreaRef.current;
@@ -240,7 +241,7 @@ export default function ChatPage() {
   const handleSend = async () => {
     const trimmedInput = input.trim();
     if (!trimmedInput && !imageFile) return;
-    if (!currentUser) return;
+    if (!currentUser || !db || !storage) return;
   
     setIsSending(true);
     
@@ -317,7 +318,7 @@ export default function ChatPage() {
   };
 
   const handleDeleteMessage = async () => {
-    if (!deletingMessageId) return;
+    if (!deletingMessageId || !db) return;
 
     try {
       await deleteDoc(doc(db, "messages", deletingMessageId));

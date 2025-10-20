@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Feather } from "lucide-react";
 import { signInAnonymously } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { useAuth } from "@/firebase/provider";
 
 const PASSCODES: Record<string, string> = {
   "passcode1": "Crazy",
@@ -74,6 +74,7 @@ const themes = [
 export default function DisguisedLoginPage() {
   const [input, setInput] = useState("");
   const router = useRouter();
+  const auth = useAuth();
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState(contentSets[0]);
   const [theme, setTheme] = useState(themes[0]);
@@ -86,6 +87,11 @@ export default function DisguisedLoginPage() {
 
   const handleLogin = useCallback(async (userIdentifier: string) => {
     try {
+      if (!auth) {
+        console.error("Auth service not available");
+        router.push("https://news.google.com");
+        return;
+      }
       await signInAnonymously(auth);
       sessionStorage.setItem("isAuthenticated", "true");
       sessionStorage.setItem("currentUser", userIdentifier);
@@ -95,7 +101,7 @@ export default function DisguisedLoginPage() {
       // Fallback redirect to maintain disguise
       router.push("https://news.google.com");
     }
-  }, [router]);
+  }, [router, auth]);
   
   const handleInputChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     let currentInput = event.target.value;

@@ -28,6 +28,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     const adminApp = await initializeAdminApp();
     if (!adminApp) {
         // Admin SDK not initialized, so we can't send notifications.
+        console.warn("Firebase Admin SDK not initialized. Skipping notification.");
         return;
     }
 
@@ -42,13 +43,16 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         return;
     }
     
-    const tokenDoc = await firestore.collection('fcmTokens').doc(recipient).get();
+    // Correctly query for the user's token by their username
+    const tokensCollection = firestore.collection('fcmTokens');
+    const querySnapshot = await tokensCollection.where('username', '==', recipient).limit(1).get();
 
-    if (!tokenDoc.exists) {
-        console.log(`No FCM token found for user: ${recipient}`);
+    if (querySnapshot.empty) {
+        console.log(`No FCM token document found for username: ${recipient}`);
         return;
     }
 
+    const tokenDoc = querySnapshot.docs[0];
     const fcmToken = tokenDoc.data()?.token;
 
     if (!fcmToken) {

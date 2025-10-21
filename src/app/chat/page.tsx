@@ -468,10 +468,7 @@ export default function ChatPage() {
                    <div
                     key={message.id}
                     id={message.id}
-                    className={cn(
-                      "group flex items-start gap-3",
-                      message.sender === currentUser && "justify-end"
-                    )}
+                    className="group flex w-full"
                   >
                     <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
                       if (!isOpen) setSelectedMessageId(null);
@@ -485,7 +482,7 @@ export default function ChatPage() {
                           className={cn(
                             "max-w-[85%] rounded-lg p-3 text-sm cursor-pointer w-auto",
                             message.sender === currentUser
-                              ? "bg-primary text-primary-foreground"
+                              ? "bg-primary text-primary-foreground ml-auto"
                               : "bg-card text-card-foreground",
                             selectedMessageId === message.id ? (message.sender === currentUser ? 'bg-blue-700' : 'bg-muted') : ''
                           )}
@@ -668,9 +665,5 @@ export default function ChatPage() {
     </>
   );
 }
-
-    
-
-    
 
     

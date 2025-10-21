@@ -458,76 +458,78 @@ export default function ChatPage() {
                     className={cn(
                       "group flex gap-2",
                       getDisplayName(message.sender) === getDisplayName(currentUser!)
-                        ? "flex-row-reverse pl-10 sm:pl-16"
-                        : "pr-10 sm:pr-16"
+                        ? "flex-row-reverse"
+                        : ""
                     )}
                   >
-                    <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
-                      if (!isOpen) setSelectedMessageId(null);
-                    }}>
-                      <PopoverTrigger asChild>
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMessageSelect(message);
-                          }}
-                          className={cn(
-                            "rounded-lg p-3 text-sm cursor-pointer",
-                            getDisplayName(message.sender) === getDisplayName(currentUser!)
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-card text-card-foreground",
-                            selectedMessageId === message.id ? (getDisplayName(message.sender) === getDisplayName(currentUser!) ? 'bg-blue-700' : 'bg-muted') : ''
-                          )}
-                        >
-                          {message.replyingToId && message.replyingToSender && (
-                              <a href={`#${message.replyingToId}`} className="block mb-2 p-2 rounded-md bg-black/20 hover:bg-black/30 transition-colors">
-                                  <p className="text-xs font-semibold">{getDisplayName(message.replyingToSender) === getDisplayName(currentUser!) ? 'You' : getDisplayName(message.replyingToSender)}</p>
-                                  <p className="text-xs text-foreground/90">{message.replyingToText}</p>
-                              </a>
-                          )}
-                           {message.imageUrl && (
-                              <div className="mb-2">
-                                <Image
-                                  src={message.imageUrl}
-                                  alt="Attached image"
-                                  width={300}
-                                  height={300}
-                                  className="max-w-full h-auto rounded-md"
-                                  onLoad={scrollToBottom}
-                                />
-                              </div>
+                    <div className="max-w-[75%]">
+                      <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
+                        if (!isOpen) setSelectedMessageId(null);
+                      }}>
+                        <PopoverTrigger asChild>
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMessageSelect(message);
+                            }}
+                            className={cn(
+                              "rounded-lg p-3 text-sm cursor-pointer",
+                              getDisplayName(message.sender) === getDisplayName(currentUser!)
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-card text-card-foreground",
+                              selectedMessageId === message.id ? (getDisplayName(message.sender) === getDisplayName(currentUser!) ? 'bg-blue-700' : 'bg-muted') : ''
                             )}
-                          <LinkifiedText text={getMessageText(message)} />
-                          {message.createdAt && (
-                              <p
-                              className={cn(
-                                  "text-xs mt-1",
-                                  getDisplayName(message.sender) === getDisplayName(currentUser!)
-                                  ? "text-primary-foreground/70"
-                                  : "text-muted-foreground/70"
+                          >
+                            {message.replyingToId && message.replyingToSender && (
+                                <a href={`#${message.replyingToId}`} className="block mb-2 p-2 rounded-md bg-black/20 hover:bg-black/30 transition-colors">
+                                    <p className="text-xs font-semibold">{getDisplayName(message.replyingToSender) === getDisplayName(currentUser!) ? 'You' : getDisplayName(message.replyingToSender)}</p>
+                                    <p className="text-xs text-foreground/90">{message.replyingToText}</p>
+                                </a>
+                            )}
+                            {message.imageUrl && (
+                                <div className="mb-2">
+                                  <Image
+                                    src={message.imageUrl}
+                                    alt="Attached image"
+                                    width={300}
+                                    height={300}
+                                    className="max-w-full h-auto rounded-md"
+                                    onLoad={scrollToBottom}
+                                  />
+                                </div>
                               )}
-                              >
-                              {format(message.createdAt.toDate(), "h:mm a")}
-                              </p>
-                          )}
-                        </div>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-1" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleReplyClick(message)}>
-                              <MessageSquareReply className="h-4 w-4" />
-                          </Button>
-                          {getDisplayName(message.sender) === getDisplayName(currentUser!) && (
-                              <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => {
-                                setDeletingMessageId(message.id);
-                                setSelectedMessageId(null);
-                              }}>
-                                  <Trash2 className="h-4 w-4" />
-                              </Button>
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                            <LinkifiedText text={getMessageText(message)} />
+                            {message.createdAt && (
+                                <p
+                                className={cn(
+                                    "text-xs mt-1",
+                                    getDisplayName(message.sender) === getDisplayName(currentUser!)
+                                    ? "text-primary-foreground/70"
+                                    : "text-muted-foreground/70"
+                                )}
+                                >
+                                {format(message.createdAt.toDate(), "h:mm a")}
+                                </p>
+                            )}
+                          </div>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-1" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleReplyClick(message)}>
+                                <MessageSquareReply className="h-4 w-4" />
+                            </Button>
+                            {getDisplayName(message.sender) === getDisplayName(currentUser!) && (
+                                <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => {
+                                  setDeletingMessageId(message.id);
+                                  setSelectedMessageId(null);
+                                }}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -657,7 +659,5 @@ export default function ChatPage() {
     </>
   );
 }
-
-    
 
     

@@ -681,7 +681,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    
-
-    

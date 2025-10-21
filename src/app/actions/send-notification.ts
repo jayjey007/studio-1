@@ -92,7 +92,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     };
 
     try {
-        await messaging.send(payload);
+        await messaging.sendEachForMulticast(payload);
         console.log(`Successfully sent notification to ${recipient}`);
     } catch (error) {
         console.error(`Error sending notification to ${recipient}:`, error);

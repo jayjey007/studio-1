@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell } from "lucide-react";
 import { format } from "date-fns";
-import { useFirebase } from "@/firebase/provider";
+import { useFirebase, useUser } from "@/firebase/provider";
 
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/app/actions/send-notification";
@@ -94,6 +94,7 @@ const LinkifiedText = ({ text }: { text: string }) => {
 export default function ChatPage() {
   const router = useRouter();
   const { firestore: db, storage, firebaseApp } = useFirebase();
+  const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -114,10 +115,12 @@ export default function ChatPage() {
 
   const isFilePickerOpen = useRef(false);
 
-  const getDisplayName = useCallback((sender: string) => {
-    if (sender === 'Crazy') return 'Crazy';
-    if (sender === 'Cool') return 'Cool';
-    return sender;
+  const getDisplayName = useCallback((senderId: string) => {
+    if (senderId === sessionStorage.getItem("currentUser")) {
+      return sessionStorage.getItem("currentUser");
+    }
+    // This is a simplification. In a real app, you'd look up the user's display name.
+    return senderId === "Crazy" ? "Crazy" : "Cool";
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -142,7 +145,7 @@ export default function ChatPage() {
       if (isFilePickerOpen.current) {
         return;
       }
-      handleLogout();
+      // handleLogout();
     };
 
     const handleWindowFocus = () => {
@@ -254,7 +257,7 @@ export default function ChatPage() {
   const handleSend = async () => {
     const trimmedInput = input.trim();
     if (!trimmedInput && !imageFile) return;
-    if (!currentUser || !db || !storage) return;
+    if (!currentUser || !db || !storage || !user) return;
 
     setIsSending(true);
 
@@ -262,7 +265,7 @@ export default function ChatPage() {
       let imageUrl: string | undefined = undefined;
 
       if (imageFile) {
-        const imageRef = ref(storage, `chat_images/${currentUser}_${Date.now()}_${imageFile.name}`);
+        const imageRef = ref(storage, `chat_images/${user.uid}_${Date.now()}_${imageFile.name}`);
         const snapshot = await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(snapshot.ref);
       }
@@ -283,8 +286,8 @@ export default function ChatPage() {
         isEncoded: true,
         ...replyingToData,
       };
-
-      if (imageUrl) {
+      
+       if (imageUrl) {
         messageToStore.imageUrl = imageUrl;
       }
 
@@ -318,7 +321,7 @@ export default function ChatPage() {
             description = `An unexpected error occurred: ${error.code} - ${error.message}`;
         }
       } else {
-        description = `An unexpected error occurred: ${error.message}`;
+         description = `An unexpected error occurred: ${error.message || String(error)}`;
       }
 
       toast({
@@ -388,7 +391,7 @@ export default function ChatPage() {
   };
 
   const handleRequestPermission = async () => {
-    if (!firebaseApp || !db || !currentUser) {
+    if (!firebaseApp || !db || !user) {
       toast({
         title: "Error",
         description: "Firebase not initialized or user not logged in.",
@@ -407,7 +410,9 @@ export default function ChatPage() {
         const fcmToken = await getToken(messaging, { vapidKey: 'BL8V7BHhy6nE9WICeE09mNiKFC1u71vroAb3p7JyjFpI5n05yZvMx84o14MFE4O3944a8IDYKyh0dzR1bm5PouU' });
 
         if (fcmToken) {
-          const tokenRef = doc(db, 'fcmTokens', currentUser);
+          // Note: In a real app, you would associate this with the *authenticated user's ID*
+          // For this app, we'll use the 'currentUser' from session storage.
+          const tokenRef = doc(db, 'fcmTokens', user.uid);
           await setDoc(tokenRef, { token: fcmToken, username: currentUser }, { merge: true });
           toast({ title: "Success", description: "Notification token saved." });
         } else {
@@ -420,11 +425,11 @@ export default function ChatPage() {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting notification permission:', error);
       toast({
-        title: "Error",
-        description: "An error occurred while requesting notification permission." + error,
+        title: "Error Requesting Permission",
+        description: error.message || "An error occurred while requesting notification permission.",
         variant: "destructive",
       });
     }
@@ -452,14 +457,14 @@ export default function ChatPage() {
               
               <div className="space-y-4">
                 {messages.map((message) => (
-                  <div
+                   <div
                     key={message.id}
                     id={message.id}
                     className={cn(
                       "group flex gap-2",
-                      getDisplayName(message.sender) === getDisplayName(currentUser!)
+                      message.sender === currentUser
                         ? "justify-end"
-                        : ""
+                        : "justify-start"
                     )}
                   >
                     <div className="max-w-[75%]">
@@ -474,15 +479,15 @@ export default function ChatPage() {
                             }}
                             className={cn(
                               "rounded-lg p-3 text-sm cursor-pointer",
-                              getDisplayName(message.sender) === getDisplayName(currentUser!)
+                              message.sender === currentUser
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-card text-card-foreground",
-                              selectedMessageId === message.id ? (getDisplayName(message.sender) === getDisplayName(currentUser!) ? 'bg-blue-700' : 'bg-muted') : ''
+                              selectedMessageId === message.id ? (message.sender === currentUser ? 'bg-blue-700' : 'bg-muted') : ''
                             )}
                           >
                             {message.replyingToId && message.replyingToSender && (
                                 <a href={`#${message.replyingToId}`} className="block mb-2 p-2 rounded-md bg-black/20 hover:bg-black/30 transition-colors">
-                                    <p className="text-xs font-semibold">{getDisplayName(message.replyingToSender) === getDisplayName(currentUser!) ? 'You' : getDisplayName(message.replyingToSender)}</p>
+                                    <p className="text-xs font-semibold">{message.replyingToSender === currentUser ? 'You' : message.replyingToSender}</p>
                                     <p className="text-xs text-foreground/90">{message.replyingToText}</p>
                                 </a>
                             )}
@@ -503,7 +508,7 @@ export default function ChatPage() {
                                 <p
                                 className={cn(
                                     "text-xs mt-1",
-                                    getDisplayName(message.sender) === getDisplayName(currentUser!)
+                                    message.sender === currentUser
                                     ? "text-primary-foreground/70"
                                     : "text-muted-foreground/70"
                                 )}
@@ -518,7 +523,7 @@ export default function ChatPage() {
                             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleReplyClick(message)}>
                                 <MessageSquareReply className="h-4 w-4" />
                             </Button>
-                            {getDisplayName(message.sender) === getDisplayName(currentUser!) && (
+                            {message.sender === currentUser && (
                                 <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => {
                                   setDeletingMessageId(message.id);
                                   setSelectedMessageId(null);
@@ -540,7 +545,7 @@ export default function ChatPage() {
            {replyingTo && !imagePreview && (
               <div className="relative rounded-t-lg bg-muted/50 p-2 pl-4 pr-8 text-sm">
                 <p className="font-semibold text-xs text-muted-foreground">
-                  Replying to {getDisplayName(replyingTo.sender) === getDisplayName(currentUser!) ? 'yourself' : getDisplayName(replyingTo.sender)}
+                  Replying to {replyingTo.sender === currentUser ? 'yourself' : replyingTo.sender}
                 </p>
                 <p className="truncate text-foreground">{getMessageText(replyingTo, 100)}</p>
                 <Button
@@ -659,7 +664,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    
-
-    

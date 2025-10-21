@@ -1,18 +1,18 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Messages can be read and written by any authenticated user.
-    // Users can only delete their own messages.
+    // Rules for messages
     match /messages/{messageId} {
-      allow read, create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.sender == request.auth.uid;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.sender == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.sender == request.auth.uid;
     }
 
-    // FCM tokens can be written by the user they belong to.
-    // Only the server should be able to read these tokens.
+    // Rules for FCM tokens
     match /fcmTokens/{userId} {
-      allow read: if false; // Server-side access only
+      allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
   }

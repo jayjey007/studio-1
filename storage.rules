@@ -1,14 +1,10 @@
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow writes to the chat_images folder for any authenticated user
+    // Allow reads and writes on all files in chat_images if the user is authenticated
     match /chat_images/{allPaths=**} {
-      allow write: if request.auth != null;
-    }
-    
-    // Allow anyone to read images, as the URLs are public anyway
-    match /chat_images/{allPaths=**} {
-      allow read;
+      allow read, write: if request.auth != null;
     }
   }
 }

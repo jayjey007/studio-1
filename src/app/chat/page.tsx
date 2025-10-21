@@ -410,7 +410,12 @@ export default function ChatPage() {
       if (permission === 'granted') {
         setShowNotificationButton(false);
         toast({ title: "Success", description: "Notification permission granted." });
-        const fcmToken = await getToken(messaging, { vapidKey: 'BL8V7BHhy6nE9WICeE09mNiKFC1u71vroAb3p7JyjFpI5n05yZvMx84o14MFE4O3944a8IDYKyh0dzR1bm5PouU' });
+        
+        // VAPID key is required for web push notifications
+        const fcmToken = await getToken(messaging, { 
+            vapidKey: 'BL8V7BHhy6nE9WICeE09mNiKFC1u71vroAb3p7JyjFpI5n05yZvMx84o14MFE4O3944a8IDYKyh0dzR1bm5PouU',
+            serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        });
 
         if (fcmToken) {
           // Note: In a real app, you would associate this with the *authenticated user's ID*
@@ -683,5 +688,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

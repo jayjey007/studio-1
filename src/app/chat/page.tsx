@@ -196,12 +196,14 @@ export default function ChatPage() {
     return () => unsubscribe();
   }, [currentUser, db, toast]);
   
-    useEffect(() => {
-    isSupported().then(supported => {
-      if (supported && Notification.permission !== 'granted') {
-        setShowNotificationButton(true);
-      }
-    });
+  useEffect(() => {
+    const checkSupport = async () => {
+        const supported = await isSupported();
+        if (supported && Notification.permission !== 'granted') {
+            setShowNotificationButton(true);
+        }
+    };
+    checkSupport();
   }, []);
 
 
@@ -461,14 +463,17 @@ export default function ChatPage() {
           </div>
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full" ref={scrollAreaRef}>
-            <div className="px-4 py-6 md:px-6" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
+            <div className="p-4 md:p-6" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
               
               <div className="space-y-4">
                 {messages.map((message) => (
                    <div
                     key={message.id}
                     id={message.id}
-                    className="group flex w-full"
+                    className={cn(
+                      "group flex w-full",
+                      message.sender === currentUser ? "justify-end" : ""
+                    )}
                   >
                     <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
                       if (!isOpen) setSelectedMessageId(null);
@@ -482,7 +487,7 @@ export default function ChatPage() {
                           className={cn(
                             "max-w-[85%] rounded-lg p-3 text-sm cursor-pointer w-auto",
                             message.sender === currentUser
-                              ? "bg-primary text-primary-foreground ml-auto"
+                              ? "bg-primary text-primary-foreground"
                               : "bg-card text-card-foreground",
                             selectedMessageId === message.id ? (message.sender === currentUser ? 'bg-blue-700' : 'bg-muted') : ''
                           )}

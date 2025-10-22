@@ -486,15 +486,13 @@ export default function ChatPage() {
               
               <div className="space-y-4">
                 {messages.map((message) => (
-                   <div
-                    key={message.id}
-                    id={message.id}
-                    className={cn(
-                      "flex w-full",
-                       message.sender === currentUser ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    <div className="w-auto max-w-[85%]">
+                   <div key={message.id} id={message.id}>
+                    <div
+                      className={cn(
+                        'w-auto max-w-[85%]',
+                        message.sender === currentUser && 'ml-auto'
+                      )}
+                    >
                       <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
                         if (!isOpen) setSelectedMessageId(null);
                       }}>
@@ -691,9 +689,5 @@ export default function ChatPage() {
     </>
   );
 }
-
-    
-
-    
 
     

@@ -282,9 +282,10 @@ export default function ChatPage() {
         replyingToSender: getDisplayName(replyingTo.sender),
       } : {};
 
-      const messageToStore: Omit<Message, 'id' | 'createdAt'> & { createdAt: any } = {
+      const messageToStore: Omit<Message, 'id' | 'createdAt'> & { createdAt: any, senderUid: string } = {
         scrambledText: encodedMessageText,
         sender: currentUser,
+        senderUid: user.uid,
         createdAt: serverTimestamp(),
         isEncoded: true,
         ...replyingToData,
@@ -411,15 +412,13 @@ export default function ChatPage() {
         setShowNotificationButton(false);
         toast({ title: "Success", description: "Notification permission granted." });
         
-        // VAPID key is required for web push notifications
+        const serviceWorkerRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         const fcmToken = await getToken(messaging, { 
             vapidKey: 'BL8V7BHhy6nE9WICeE09mNiKFC1u71vroAb3p7JyjFpI5n05yZvMx84o14MFE4O3944a8IDYKyh0dzR1bm5PouU',
-            serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+            serviceWorkerRegistration,
         });
 
         if (fcmToken) {
-          // Note: In a real app, you would associate this with the *authenticated user's ID*
-          // For this app, we'll use the 'currentUser' from session storage.
           const tokenRef = doc(db, 'fcmTokens', user.uid);
           await setDoc(tokenRef, { token: fcmToken, username: currentUser }, { merge: true });
           toast({ title: "Success", description: "Notification token saved." });
@@ -488,10 +487,10 @@ export default function ChatPage() {
                     id={message.id}
                     className={cn(
                       "flex w-full",
-                      message.sender === currentUser ? "justify-end" : ""
+                      message.sender === currentUser ? "justify-end" : "justify-start"
                     )}
                   >
-                    <div className="max-w-[85%]">
+                    <div className="w-auto max-w-[85%]">
                       <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
                         if (!isOpen) setSelectedMessageId(null);
                       }}>
@@ -688,5 +687,7 @@ export default function ChatPage() {
     </>
   );
 }
+
+    
 
     

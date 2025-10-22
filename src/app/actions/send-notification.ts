@@ -2,7 +2,7 @@
 'use server';
 
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
-import { getMessaging } from 'firebase-admin/messaging';
+import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
 import { initializeAdminApp } from '@/firebase/admin-app';
 import { toast } from '@/hooks/use-toast';
 
@@ -44,9 +44,13 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         return;
     }
     
-    // Correctly query for the user's token by their username
     const tokensCollection = firestore.collection('fcmTokens');
-    const querySnapshot = await tokensCollection.where('username', '==', recipient).limit(1).get();
+    const querySnapshot = await tokensCollection
+      .where('username', '==', recipient)
+      .orderBy('createdAt', 'desc')
+      .limit(1)
+      .get();
+
 
     if (querySnapshot.empty) {
         console.log(`No FCM token document found for username: ${recipient}`);
@@ -63,7 +67,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     
     const randomFact = randomFacts[Math.floor(Math.random() * randomFacts.length)];
 
-    const payload = {
+    const payload: MulticastMessage = {
         tokens: [fcmToken],
         notification: {
             title: 'Fun facts',
@@ -76,7 +80,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         },
         apns: {
             headers: {
-                'apns-priority': '10', // Required for immediate delivery on iOS
+                'apns-priority': '10', 
             },
             payload: {
                 aps: {
@@ -103,3 +107,5 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
           });
     }
 }
+
+    

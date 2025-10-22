@@ -420,7 +420,11 @@ export default function ChatPage() {
 
         if (fcmToken) {
           const tokenRef = doc(db, 'fcmTokens', user.uid);
-          await setDoc(tokenRef, { token: fcmToken, username: currentUser }, { merge: true });
+          await setDoc(tokenRef, { 
+            token: fcmToken, 
+            username: currentUser,
+            createdAt: serverTimestamp() 
+          }, { merge: true });
           toast({ title: "Success", description: "Notification token saved." });
         } else {
           toast({ title: "Error", description: "Could not get notification token.", variant: "destructive" });
@@ -486,8 +490,8 @@ export default function ChatPage() {
                     key={message.id}
                     id={message.id}
                     className={cn(
-                      "flex",
-                      message.sender === currentUser ? "justify-end" : "justify-start"
+                      "flex w-full",
+                       message.sender === currentUser ? "justify-end" : "justify-start"
                     )}
                   >
                     <div className="w-auto max-w-[85%]">
@@ -687,6 +691,8 @@ export default function ChatPage() {
     </>
   );
 }
+
+    
 
     
 

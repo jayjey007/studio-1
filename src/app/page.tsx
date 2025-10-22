@@ -4,11 +4,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Feather } from "lucide-react";
-import { signInAnonymously } from "firebase/auth";
+import { signInWithCustomToken } from "firebase/auth";
 import { useAuth } from "@/firebase/provider";
-import { doc, setDoc } from "firebase/firestore";
-import { useFirebase } from "@/firebase/provider";
-
 
 const USERS: Record<string, { username: string, uid: string }> = {
   "passcode1": { username: "Crazy", uid: "QYTCCLfLg1gxdLLQy34y0T2Pz3g2" },
@@ -78,7 +75,6 @@ export default function DisguisedLoginPage() {
   const [input, setInput] = useState("");
   const router = useRouter();
   const auth = useAuth();
-  const { firestore: db } = useFirebase();
 
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState(contentSets[0]);
@@ -92,19 +88,26 @@ export default function DisguisedLoginPage() {
 
   const handleLogin = useCallback(async (user: {username: string, uid: string}) => {
     try {
-      if (!auth || !db) {
-        console.error("Auth or Firestore service not available");
+      if (!auth) {
+        console.error("Auth service not available");
         router.push("https://news.google.com");
         return;
       }
       
-      // We will use anonymous sign-in and then associate the user data.
-      const userCredential = await signInAnonymously(auth);
-      
-      // Even with anonymous auth, we can create a user document with a known UID
-      // for our application's logic. This is not the anonymous UID from the credential.
-      const userRef = doc(db, "users", user.uid);
-      await setDoc(userRef, { username: user.username, uid: user.uid }, { merge: true });
+      const response = await fetch('/api/custom-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: user.uid }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get custom token');
+      }
+
+      const { token } = await response.json();
+
+      await signInWithCustomToken(auth, token);
 
       sessionStorage.setItem("isAuthenticated", "true");
       sessionStorage.setItem("currentUser", user.username);
@@ -114,7 +117,7 @@ export default function DisguisedLoginPage() {
       // Fallback redirect to maintain disguise
       router.push("https://news.google.com");
     }
-  }, [router, auth, db]);
+  }, [router, auth]);
   
   const handleInputChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     let currentInput = event.target.value;

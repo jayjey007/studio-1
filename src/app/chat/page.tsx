@@ -419,13 +419,13 @@ export default function ChatPage() {
         });
 
         if (fcmToken) {
-          const tokenRef = doc(db, 'fcmTokens', user.uid);
-          await setDoc(tokenRef, { 
-            token: fcmToken, 
+          const tokensCollection = collection(db, 'fcmTokens');
+          await addDoc(tokensCollection, {
+            token: fcmToken,
             username: currentUser,
-            createdAt: serverTimestamp() 
-          }, { merge: true });
-          toast({ title: "Success", description: "Notification token saved." });
+            createdAt: serverTimestamp(),
+          });
+          toast({ title: 'Success', description: 'Notification token saved.' });
         } else {
           toast({ title: "Error", description: "Could not get notification token.", variant: "destructive" });
         }
@@ -482,16 +482,12 @@ export default function ChatPage() {
           </div>
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full" ref={scrollAreaRef}>
-            <div className="p-4 md:p-6" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
-              
+            <div className="px-4 py-6 md:px-6" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
               <div className="space-y-4">
                 {messages.map((message) => (
-                   <div key={message.id} id={message.id}>
+                  <div key={message.id} id={message.id} className={cn("flex", message.sender === currentUser && "justify-end")}>
                     <div
-                      className={cn(
-                        'w-auto max-w-[85%]',
-                        message.sender === currentUser && 'ml-auto'
-                      )}
+                      className={'w-auto max-w-[85%]'}
                     >
                       <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
                         if (!isOpen) setSelectedMessageId(null);
@@ -689,5 +685,7 @@ export default function ChatPage() {
     </>
   );
 }
+
+    
 
     

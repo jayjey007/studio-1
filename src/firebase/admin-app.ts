@@ -19,7 +19,8 @@ export async function initializeAdminApp() {
     }
 
     try {
-        // This will automatically use GOOGLE_APPLICATION_CREDENTIALS in the App Hosting environment
+        // This will automatically use GOOGLE_APPLICATION_CREDENTIALS in the App Hosting environment,
+        // and for local development, the projectId is sufficient.
         app = initializeApp({
           projectId: firebaseConfig.projectId,
         });

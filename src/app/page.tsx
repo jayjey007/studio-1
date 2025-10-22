@@ -4,8 +4,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Feather } from "lucide-react";
-import { signInWithCustomToken } from "firebase/auth";
-import { useAuth } from "@/firebase/provider";
 
 const USERS: Record<string, { username: string, uid: string }> = {
   "passcode1": { username: "Crazy", uid: "QYTCCLfLg1gxdLLQy34y0T2Pz3g2" },
@@ -28,7 +26,7 @@ const contentSets = [
     paragraphs: [
       "Every character we type, every image we share, becomes a digital echo—a faint but permanent vibration in the vast network of servers that constitutes modern memory. These echoes outlive our intentions, carrying fragments of our past into unforeseen futures.",
       "We often speak of the digital world as being separate from the 'real' one, a place of avatars and aliases. Yet, the emotions carried through these networks are real. The connections formed, however fleeting, are real. The data we generate is a direct reflection of our thoughts, desires, and fears. This digital doppelgänger is not a shadow; it is a mirror, reflecting a version of ourselves we may not always recognize but cannot disown.",
-      "To exist online is to be in a constant state of performance. We curate our lives, presenting a polished version for public consumption. But what of the unedited drafts? The hesitations, the deleted words, the closed tabs? These moments of unfiltered thought, though unseen, are the true architecture of our digital consciousness. They are the silent spaces between the echoes where our authentic selves reside."
+      "To exist online is to be in a constant state of performance. We curate our lives, a presenting version for public consumption. But what of the unedited drafts? The hesitations, the deleted words, the closed tabs? These moments of unfiltered thought, though unseen, are the true architecture of our digital consciousness. They are the silent spaces between the echoes where our authentic selves reside."
     ],
     author: "the Archivist"
   },
@@ -74,7 +72,6 @@ const themes = [
 export default function DisguisedLoginPage() {
   const [input, setInput] = useState("");
   const router = useRouter();
-  const auth = useAuth();
 
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState(contentSets[0]);
@@ -86,40 +83,13 @@ export default function DisguisedLoginPage() {
     setTheme(themes[Math.floor(Math.random() * themes.length)]);
   }, []);
 
-  const handleLogin = useCallback(async (user: {username: string, uid: string}) => {
-    try {
-      if (!auth) {
-        console.error("Auth service not available");
-        router.push("https://news.google.com");
-        return;
-      }
-      
-      const response = await fetch('/api/custom-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.uid }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get custom token');
-      }
-
-      const { token } = await response.json();
-
-      await signInWithCustomToken(auth, token);
-
-      sessionStorage.setItem("isAuthenticated", "true");
-      sessionStorage.setItem("currentUser", user.username);
-      router.push("/chat");
-    } catch (error) {
-      console.error("Sign-in failed:", error);
-      // Fallback redirect to maintain disguise
-      //router.push("https://news.google.com");
-    }
-  }, [router, auth]);
+  const handleLogin = useCallback((user: {username: string, uid: string}) => {
+    sessionStorage.setItem("isAuthenticated", "true");
+    sessionStorage.setItem("currentUser", user.username);
+    router.push("/chat");
+  }, [router]);
   
-  const handleInputChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     let currentInput = event.target.value;
     
     if (currentInput.length > MAX_PASSCODE_LENGTH) {
@@ -130,7 +100,7 @@ export default function DisguisedLoginPage() {
 
     const user = USERS[currentInput];
     if (user) {
-      await handleLogin(user);
+      handleLogin(user);
       setInput(""); // Reset input after successful login
     }
   }, [handleLogin]);
@@ -148,11 +118,11 @@ export default function DisguisedLoginPage() {
     };
   }, []);
   
-  const handleFormSubmit = useCallback(async (event: React.FormEvent) => {
+  const handleFormSubmit = useCallback((event: React.FormEvent) => {
       event.preventDefault();
       const user = USERS[input];
       if (user) {
-        await handleLogin(user);
+        handleLogin(user);
       } else {
         router.push("https://news.google.com");
       }
@@ -194,7 +164,7 @@ export default function DisguisedLoginPage() {
                 onChange={handleInputChange}
                 autoComplete="off"
                 autoCapitalize="none"
-aria-hidden="true"
+                aria-hidden="true"
                 style={{
                     position: 'absolute',
                     top: '-9999px',
@@ -210,3 +180,5 @@ aria-hidden="true"
     </div>
   );
 }
+
+    

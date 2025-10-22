@@ -19,14 +19,19 @@ export async function initializeAdminApp() {
     }
 
     try {
-        // This will automatically use GOOGLE_APPLICATION_CREDENTIALS in the App Hosting environment,
-        // and for local development, the projectId is sufficient.
-        app = initializeApp({
-          projectId: firebaseConfig.projectId,
-        });
+        // This will automatically use GOOGLE_APPLICATION_CREDENTIALS in the App Hosting environment
+        app = initializeApp();
     } catch(e) {
-        console.error("Firebase Admin SDK initialization failed", e);
-        return null;
+        // For local development, the projectId is sufficient.
+        console.warn("Standard admin initialization failed, likely in a local environment. Falling back to explicit projectId.", e);
+        try {
+            app = initializeApp({
+              projectId: firebaseConfig.projectId,
+            });
+        } catch (localError) {
+            console.error("Firebase Admin SDK initialization failed completely.", localError);
+            return null;
+        }
     }
 
 

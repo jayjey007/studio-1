@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, writeBatch, where, getDocs } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, where, getDocs, writeBatch } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getMessaging, getToken, isSupported } from "firebase/messaging";
 import { Button } from "@/components/ui/button";
@@ -104,8 +104,7 @@ const LinkifiedText = ({ text }: { text: string }) => {
 
 export default function ChatPage() {
   const router = useRouter();
-  const { firestore: db, storage, firebaseApp } = useFirebase();
-  const { user } = useUser();
+  const { firestore: db, storage, firebaseApp, user } = useFirebase(); // We still need user for UID
   
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -126,9 +125,11 @@ export default function ChatPage() {
 
   const isFilePickerOpen = useRef(false);
 
+  const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
+
   // This is the core logic change.
   // We create two queries: one for messages sent by the user, and one for messages received.
-  const messagesCollectionRef = useMemoFirebase(() => user ? collection(db, 'users', user.uid, 'messages') : null, [db, user]);
+  const messagesCollectionRef = useMemoFirebase(() => currentUserObject ? collection(db, 'users', currentUserObject.uid, 'messages') : null, [db, currentUserObject]);
   const messagesQuery = useMemoFirebase(() => messagesCollectionRef ? query(messagesCollectionRef, orderBy('createdAt', 'asc')) : null, [messagesCollectionRef]);
   const { data: messages, error: messagesError, isLoading: messagesLoading } = useCollection<Message>(messagesQuery);
   
@@ -143,13 +144,6 @@ export default function ChatPage() {
         });
     }
   }, [messagesError, toast]);
-
-
-  const getDisplayName = useCallback((senderId: string): string => {
-      // In a real app, you'd look up the user's display name from their UID.
-      // For this app, we'll map the username back.
-      return senderId;
-  }, []);
 
   const handleLogout = useCallback(() => {
     sessionStorage.removeItem("isAuthenticated");
@@ -173,7 +167,7 @@ export default function ChatPage() {
       if (isFilePickerOpen.current) {
         return;
       }
-      handleLogout();
+      // handleLogout();
     };
 
     const handleWindowFocus = () => {
@@ -255,7 +249,7 @@ export default function ChatPage() {
   const handleSend = async () => {
     const trimmedInput = input.trim();
     if (!trimmedInput && !imageFile) return;
-    if (!currentUser || !db || !storage || !user) return;
+    if (!currentUser || !db || !storage || !currentUserObject) return;
 
     setIsSending(true);
 
@@ -270,7 +264,7 @@ export default function ChatPage() {
       let imageUrl: string | undefined = undefined;
 
       if (imageFile) {
-        const imageRef = ref(storage, `chat_images/${user.uid}_${Date.now()}_${imageFile.name}`);
+        const imageRef = ref(storage, `chat_images/${currentUserObject.uid}_${Date.now()}_${imageFile.name}`);
         const snapshot = await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(snapshot.ref);
       }
@@ -281,14 +275,14 @@ export default function ChatPage() {
       const replyingToData = replyingTo ? {
         replyingToId: replyingTo.id,
         replyingToText: getMessageText(replyingTo, 50),
-        replyingToSender: getDisplayName(replyingTo.sender),
+        replyingToSender: replyingTo.sender,
       } : {};
 
       const messageData: Omit<Message, 'id' | 'createdAt'> & { createdAt: any } = {
         scrambledText: encodedMessageText,
         sender: currentUser,
         recipient: recipientUser.username,
-        senderUid: user.uid,
+        senderUid: currentUserObject.uid,
         recipientUid: recipientUser.uid,
         createdAt: serverTimestamp(),
         isEncoded: true,
@@ -302,7 +296,7 @@ export default function ChatPage() {
       // Write the message to both the sender's and recipient's collections
       const batch = writeBatch(db);
       
-      const senderMsgRef = doc(collection(db, 'users', user.uid, 'messages'));
+      const senderMsgRef = doc(collection(db, 'users', currentUserObject.uid, 'messages'));
       batch.set(senderMsgRef, messageData);
       
       const recipientMsgRef = doc(collection(db, 'users', recipientUser.uid, 'messages'));
@@ -366,7 +360,7 @@ export default function ChatPage() {
 
 
   const handleDeleteMessage = async () => {
-    if (!deletingMessageId || !db || !user) return;
+    if (!deletingMessageId || !db || !currentUserObject) return;
      const recipientUser = ALL_USERS.find(u => u.username !== currentUser);
     if (!recipientUser) return;
 
@@ -375,23 +369,28 @@ export default function ChatPage() {
       // We need to delete the message from both users' collections
       const batch = writeBatch(db);
 
-      const senderMsgRef = doc(db, "users", user.uid, "messages", deletingMessageId);
+      const senderMsgRef = doc(db, "users", currentUserObject.uid, "messages", deletingMessageId);
       batch.delete(senderMsgRef);
       
       // We need to find the corresponding message in the recipient's collection to delete it.
       // This is a simplification. A real app would store a shared message ID.
       // For this app, we'll query for a message with the same timestamp from the same sender.
       const recipientMsgCollection = collection(db, 'users', recipientUser.uid, 'messages');
-      const q = query(
-          recipientMsgCollection, 
-          where("senderUid", "==", user.uid),
-          where("createdAt", "==", messages?.find(m => m.id === deletingMessageId)?.createdAt)
-        );
+      const originalMessage = messages?.find(m => m.id === deletingMessageId);
+      
+      if(originalMessage){
+        const q = query(
+            recipientMsgCollection, 
+            where("senderUid", "==", currentUserObject.uid),
+            where("createdAt", "==", originalMessage.createdAt)
+          );
 
-      const querySnapshot = await getDocs(q);
-      querySnapshot.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+      }
+
 
       await batch.commit();
 
@@ -442,7 +441,7 @@ export default function ChatPage() {
   };
 
   const handleRequestPermission = async () => {
-    if (!firebaseApp || !db || !user || !currentUser) {
+    if (!firebaseApp || !db || !currentUser) {
       toast({
         title: "Error",
         description: "Firebase not initialized or user not logged in.",

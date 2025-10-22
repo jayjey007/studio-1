@@ -1,3 +1,4 @@
+
 {
   "indexes": [
     {
@@ -20,6 +21,20 @@
       "fields": [
         {
           "fieldPath": "senderUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fcmTokens",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "username",
           "order": "ASCENDING"
         },
         {

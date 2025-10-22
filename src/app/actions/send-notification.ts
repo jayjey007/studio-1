@@ -30,6 +30,11 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     if (!adminApp) {
         // Admin SDK not initialized, so we can't send notifications.
         console.warn("Firebase Admin SDK not initialized. Skipping notification.");
+        toast({
+            title: "Error Sending notification",
+            description: "Firebase Admin SDK not initialized. Skipping notification.",
+            variant: "destructive",
+          });
         return;
     }
 
@@ -41,6 +46,11 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
 
     if (!recipient) {
         console.log('No recipient found to send notification.');
+        toast({
+            title: "Error Sending notification",
+            description: "No recipient found to send notification.",
+            variant: "destructive",
+          });
         return;
     }
     
@@ -54,6 +64,11 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
 
     if (querySnapshot.empty) {
         console.log(`No FCM token document found for username: ${recipient}`);
+        toast({
+            title: "Error Sending notification",
+            description: "No FCM token document found for username:" + recipient,
+            variant: "destructive",
+          });
         return;
     }
 
@@ -62,6 +77,11 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
 
     if (!fcmToken) {
         console.log(`FCM token is empty for user: ${recipient}`);
+        toast({
+            title: "Error Sending notification",
+            description: "FCM token is empty for user: " + recipient,
+            variant: "destructive",
+          });
         return;
     }
     

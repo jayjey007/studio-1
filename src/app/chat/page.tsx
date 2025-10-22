@@ -296,11 +296,19 @@ export default function ChatPage() {
       }
 
       const docRef = await addDoc(collection(db, "messages"), messageToStore);
-      await sendNotification({
+      const notificationResult = await sendNotification({
         message: messageTextToSend,
         sender: currentUser,
         messageId: docRef.id
       });
+
+      if (!notificationResult.success) {
+        toast({
+            title: "Notification Error",
+            description: notificationResult.error || "Could not send notification.",
+            variant: "destructive",
+        });
+      }
 
       setInput("");
       setReplyingTo(null);
@@ -395,7 +403,7 @@ export default function ChatPage() {
   };
 
   const handleRequestPermission = async () => {
-    if (!firebaseApp || !db || !user) {
+    if (!firebaseApp || !db || !user || !currentUser) {
       toast({
         title: "Error",
         description: "Firebase not initialized or user not logged in.",
@@ -482,10 +490,9 @@ export default function ChatPage() {
           </div>
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full" ref={scrollAreaRef}>
-            <div className="px-4 py-6 md:px-6" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div key={message.id} id={message.id} className={cn("flex", message.sender === currentUser && "justify-end")}>
+            <div className="space-y-4 px-4 py-6 md:px-6" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
+              {messages.map((message) => (
+                  <div key={message.id} id={message.id} className={cn("flex w-full", message.sender === currentUser && "justify-end")}>
                     <div
                       className={'w-auto max-w-[85%]'}
                     >
@@ -558,7 +565,6 @@ export default function ChatPage() {
                     </div>
                   </div>
                 ))}
-              </div>
             </div>
           </ScrollArea>
         </main>

@@ -4,12 +4,16 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
 import { initializeAdminApp } from '@/firebase/admin-app';
-import { toast } from '@/hooks/use-toast';
 
 interface sendNotificationProps {
     message: string;
     sender: string;
     messageId: string;
+}
+
+interface NotificationResult {
+    success: boolean;
+    error?: string;
 }
 
 const randomFacts = [
@@ -25,17 +29,12 @@ const randomFacts = [
     "Sea otters hold hands when they sleep so they don't float away."
 ];
 
-export async function sendNotification({ message, sender, messageId }: sendNotificationProps) {
+export async function sendNotification({ message, sender, messageId }: sendNotificationProps): Promise<NotificationResult> {
     const adminApp = await initializeAdminApp();
     if (!adminApp) {
-        // Admin SDK not initialized, so we can't send notifications.
-        console.warn("Firebase Admin SDK not initialized. Skipping notification.");
-        toast({
-            title: "Error Sending notification",
-            description: "Firebase Admin SDK not initialized. Skipping notification.",
-            variant: "destructive",
-          });
-        return;
+        const errorMsg = "Firebase Admin SDK not initialized. Skipping notification.";
+        console.warn(errorMsg);      
+        return { success: false, error: errorMsg };
     }
 
     const { firestore, app } = adminApp;
@@ -45,13 +44,9 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     const recipient = users.find(user => user !== sender);
 
     if (!recipient) {
-        console.log('No recipient found to send notification.');
-        toast({
-            title: "Error Sending notification",
-            description: "No recipient found to send notification.",
-            variant: "destructive",
-          });
-        return;
+        const errorMsg = 'No recipient found to send notification.';
+        console.log(errorMsg);
+        return { success: false, error: errorMsg };
     }
     
     const tokensCollection = firestore.collection('fcmTokens');
@@ -63,26 +58,18 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
 
 
     if (querySnapshot.empty) {
-        console.log(`No FCM token document found for username: ${recipient}`);
-        toast({
-            title: "Error Sending notification",
-            description: "No FCM token document found for username:" + recipient,
-            variant: "destructive",
-          });
-        return;
+        const errorMsg = `No FCM token document found for username: ${recipient}`;
+        console.log(errorMsg);        
+        return { success: false, error: errorMsg };
     }
 
     const tokenDoc = querySnapshot.docs[0];
     const fcmToken = tokenDoc.data()?.token;
 
     if (!fcmToken) {
-        console.log(`FCM token is empty for user: ${recipient}`);
-        toast({
-            title: "Error Sending notification",
-            description: "FCM token is empty for user: " + recipient,
-            variant: "destructive",
-          });
-        return;
+        const errorMsg = `FCM token is empty for user: ${recipient}`;
+        console.log(errorMsg);        
+        return { success: false, error: errorMsg };
     }
     
     const randomFact = randomFacts[Math.floor(Math.random() * randomFacts.length)];
@@ -118,14 +105,10 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     try {
         await messaging.sendEachForMulticast(payload);
         console.log(`Successfully sent notification to ${recipient}`);
-    } catch (error) {
-        console.error(`Error sending notification to ${recipient}:`, error);
-        toast({
-            title: "Error Sending Message",
-            description: "Error" + error,
-            variant: "destructive",
-          });
+        return { success: true };
+    } catch (error: any) {
+        const errorMsg = `Error sending notification to ${recipient}: ${error.message}`;
+        console.error(errorMsg);        
+        return { success: false, error: errorMsg };
     }
 }
-
-    

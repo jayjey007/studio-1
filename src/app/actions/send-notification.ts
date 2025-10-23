@@ -3,7 +3,26 @@
 
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
-import { initializeAdminApp } from '@/firebase/admin-app';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { firebaseConfig } from '@/firebase/config';
+
+// This function should be defined within the file or imported from a non-'use server' module.
+// For simplicity, we define it here to avoid cross-module issues with 'use server'.
+function getAdminApp(): App | null {
+    if (getApps().some(app => app.name === 'admin')) {
+        return getApps().find(app => app.name === 'admin')!;
+    }
+    try {
+        return initializeApp({ projectId: firebaseConfig.projectId }, 'admin');
+    } catch (e: any) {
+        console.warn(
+            "Admin initialization failed. This may be expected in local development.",
+            e.message
+        );
+        return null;
+    }
+}
+
 
 interface sendNotificationProps {
     message: string;
@@ -36,15 +55,15 @@ const FUN_FACTS = [
 ];
 
 export async function sendNotification({ message, sender, messageId }: sendNotificationProps): Promise<NotificationResult> {
-    const adminServices = await initializeAdminApp();
-    if (!adminServices) {
+    const adminApp = getAdminApp();
+    if (!adminApp) {
         const errorMsg = "Firebase Admin SDK not initialized. Skipping notification.";
         console.warn(errorMsg);
         return { success: false, error: errorMsg };
     }
 
-    const { firestore, app } = adminServices;
-    const messaging = getMessaging(app);
+    const firestore = getFirestore(adminApp);
+    const messaging = getMessaging(adminApp);
     
     const recipient = ALL_USERS.find(user => user.username !== sender);
 

@@ -1,25 +1,17 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    //
-    // Schemas
-    //
-    // User: Represents a user of the CipherChat application.
-    // ChatMessage: Represents a chat message within CipherChat.
-    //
-    //
-    // Rules
-    //
-    // The following rules are auto-generated from the backend.json file.
-    //
-    // **Warning**: Do not modify this file directly. Instead, update the
-    //            backend.json file and re-generate this file.
-    //
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+    match /users/{document=**} {
+      allow read, write: if true;
     }
-    match /users/{userId}/messages/{messageId} {
-      allow read, write: if request.auth.uid == userId;
+
+    match /messages/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /fcmTokens/{document=**} {
+      allow read, write: if true;
     }
   }
 }

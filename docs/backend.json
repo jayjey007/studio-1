@@ -132,7 +132,12 @@
               "name": "userId",
               "description": "The unique identifier for the user."
             }
-          ]
+          ],
+           "operations": {
+            "update": {
+              "rule": "true"
+            }
+          }
         }
       },
       {

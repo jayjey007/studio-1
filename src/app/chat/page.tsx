@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, where, getDocs, writeBatch } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, where, getDocs, writeBatch, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getMessaging, getToken, isSupported } from "firebase/messaging";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical } from "lucide-react";
 import { format } from "date-fns";
-import { useFirebase, useMemoFirebase } from "@/firebase/provider";
+import { useFirebase, useMemoFirebase, updateDocumentNonBlocking } from "@/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
 
 
@@ -149,6 +149,22 @@ export default function ChatPage() {
     sessionStorage.removeItem("currentUser");
     router.push("/");
   }, [router]);
+
+    // Effect for user activity heartbeat
+  useEffect(() => {
+    if (!db || !currentUserObject) return;
+
+    const userDocRef = doc(db, "users", currentUserObject.uid);
+
+    const intervalId = setInterval(() => {
+        // Use non-blocking update to avoid UI lag
+        updateDocumentNonBlocking(userDocRef, {
+            lastActive: serverTimestamp()
+        });
+    }, 5000); // Update every 5 seconds
+
+    return () => clearInterval(intervalId);
+  }, [db, currentUserObject]);
   
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem("isAuthenticated");
@@ -301,7 +317,7 @@ export default function ChatPage() {
         messageId: docRef.id
       });
 
-      if (!notificationResult.success) {
+      if (!notificationResult.success && !notificationResult.skipped) {
         toast({
             title: "Notification Error",
             description: notificationResult.error || "Could not send notification.",
@@ -699,5 +715,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

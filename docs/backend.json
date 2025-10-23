@@ -19,6 +19,11 @@
           "type": "string",
           "description": "The email address of the user.",
           "format": "email"
+        },
+        "lastActive": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The timestamp of the user's last activity."
         }
       },
       "required": [

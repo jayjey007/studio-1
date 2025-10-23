@@ -14,6 +14,7 @@ interface sendNotificationProps {
 interface NotificationResult {
     success: boolean;
     error?: string;
+    skipped?: boolean;
 }
 
 const ALL_USERS = [
@@ -52,9 +53,29 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         console.log(errorMsg);
         return { success: false, error: errorMsg };
     }
+
+    // Check recipient's activity status
+    try {
+        const userDoc = await firestore.collection('users').doc(recipient.uid).get();
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            const lastActive = userData?.lastActive as Timestamp | undefined;
+            if (lastActive) {
+                const now = Timestamp.now();
+                const diffSeconds = now.seconds - lastActive.seconds;
+                // If user was active in the last 10 seconds, don't send a notification
+                if (diffSeconds < 10) {
+                    console.log(`Recipient ${recipient.username} is active. Skipping notification.`);
+                    return { success: true, skipped: true };
+                }
+            }
+        }
+    } catch(error: any) {
+        console.error("Error checking user activity:", error.message);
+        // Proceed with sending notification even if activity check fails
+    }
     
     const tokensCollection = firestore.collection('fcmTokens');
-    // Simplified query to avoid needing a composite index.
     const querySnapshot = await tokensCollection
       .where('username', '==', recipient.username)
       .get();

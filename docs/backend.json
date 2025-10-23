@@ -136,7 +136,13 @@
               "name": "userId",
               "description": "The unique identifier for the user."
             }
-          ]
+          ],
+          "operations": {
+            "update": {
+              "rule": "request.auth.uid == userId",
+              "description": "A user can only update their own profile."
+            }
+          }
         }
       },
       {

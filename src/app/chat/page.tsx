@@ -152,14 +152,10 @@ export default function ChatPage() {
 
     // Effect for user activity heartbeat
   useEffect(() => {
-    if (!db || !currentUser) return;
-  
-    // Find the current user object from the hardcoded list
-    const userObject = ALL_USERS.find(u => u.username === currentUser);
-    if (!userObject) return;
+    if (!db || !currentUserObject) return;
     
     // Create a document reference to the current user's document
-    const userDocRef = doc(db, "users", userObject.uid);
+    const userDocRef = doc(db, "users", currentUserObject.uid);
   
     const intervalId = setInterval(() => {
       // Use non-blocking update to avoid UI lag.
@@ -169,7 +165,7 @@ export default function ChatPage() {
     }, 5000); // Update every 5 seconds
   
     return () => clearInterval(intervalId);
-  }, [db, currentUser]);
+  }, [db, currentUserObject]);
   
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem("isAuthenticated");

@@ -21,9 +21,9 @@
           "format": "email"
         },
         "lastActive": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The timestamp of the user's last activity."
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp of the user's last activity."
         }
       },
       "required": [
@@ -108,7 +108,11 @@
           "description": "The timestamp when the token was created or last updated."
         }
       },
-      "required": ["token", "username", "createdAt"]
+      "required": [
+        "token",
+        "username",
+        "createdAt"
+      ]
     }
   },
   "auth": {

@@ -132,12 +132,7 @@
               "name": "userId",
               "description": "The unique identifier for the user."
             }
-          ],
-           "operations": {
-            "update": {
-              "rule": "true"
-            }
-          }
+          ]
         }
       },
       {
@@ -194,3 +189,5 @@
     "reasoning": "The Firestore structure is simplified for a two-user prototype where strict security is not a requirement. All data in the 'users', 'messages', and 'fcmTokens' collections are public to allow for easy reading and writing without complex authentication checks. This model is suitable for rapid prototyping but should be secured before moving to a production environment with more users."
   }
 }
+
+    

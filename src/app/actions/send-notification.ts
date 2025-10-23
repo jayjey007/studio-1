@@ -78,6 +78,8 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     const tokensCollection = firestore.collection('fcmTokens');
     const querySnapshot = await tokensCollection
       .where('username', '==', recipient.username)
+      .orderBy('createdAt', 'desc')
+      .limit(1)
       .get();
 
 
@@ -87,12 +89,8 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         return { success: false, error: errorMsg };
     }
 
-    // Sort documents by createdAt timestamp in descending order to find the latest token.
-    const tokens = querySnapshot.docs.map(doc => doc.data());
-    tokens.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-    const latestToken = tokens[0];
-
-    const fcmToken = latestToken?.token;
+    const latestTokenDoc = querySnapshot.docs[0];
+    const fcmToken = latestTokenDoc.data().token;
 
     if (!fcmToken) {
         const errorMsg = `FCM token is empty for user: ${recipient.username}`;

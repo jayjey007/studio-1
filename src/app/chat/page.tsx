@@ -183,7 +183,7 @@ export default function ChatPage() {
       if (isFilePickerOpen.current) {
         return;
       }
-      // handleLogout();
+      handleLogout();
     };
 
     const handleWindowFocus = () => {

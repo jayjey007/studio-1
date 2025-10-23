@@ -75,13 +75,15 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         // Proceed with sending notification even if activity check fails
     }
     
+    try
+    {
     const tokensCollection = firestore.collection('fcmTokens');
     const querySnapshot = await tokensCollection
       .where('username', '==', recipient.username)
       .orderBy('createdAt', 'desc')
       .limit(1)
-      .get();
-
+      .get();   
+   
 
     if (querySnapshot.empty) {
         const errorMsg = `No FCM token document found for username: ${recipient.username}`;
@@ -126,9 +128,9 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
                 },
             },
         },
-    };
+    };  
 
-    try {
+    
         await messaging.sendEachForMulticast(payload);
         console.log(`Successfully sent notification to ${recipient.username}`);
         return { success: true };

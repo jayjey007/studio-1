@@ -41,6 +41,19 @@ const ALL_USERS = [
     { username: 'Cool', uid: 'N2911Sj2g8cT03s5v31s1p9V8s22' }
 ];
 
+const FUN_FACTS = [
+    "A group of flamingos is called a 'flamboyance'.",
+    "The unicorn is the national animal of Scotland.",
+    "A single strand of spaghetti is called a 'spaghetto'.",
+    "The plural of 'octopus' is 'octopuses', not 'octopi'.",
+    "Honey never spoils.",
+    "Bananas are berries, but strawberries aren't."
+];
+
+function getRandomFunFact(): string {
+    return FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)];
+}
+
 
 export async function sendNotification({ message, sender, messageId }: sendNotificationProps): Promise<NotificationResult> {
     const adminApp = getAdminApp();
@@ -107,13 +120,13 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         return { success: false, error: errorMsg };
     }
 
-    const notificationMessage = message.length > 100 ? message.substring(0, 97) + '...' : message;
+    const funFact = getRandomFunFact();
 
     const payload: MulticastMessage = {
         tokens: [fcmToken],
         notification: {
             title: `New message from ${sender}`,
-            body: notificationMessage,
+            body: funFact,
         },
         webpush: {
             fcmOptions: {
@@ -128,7 +141,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
                 aps: {
                     alert: {
                         title: `New message from ${sender}`,
-                        body: notificationMessage,
+                        body: funFact,
                     },
                     sound: 'default',
                     badge: 1,

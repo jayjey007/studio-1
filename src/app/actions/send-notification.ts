@@ -99,7 +99,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     {
 
         const querySnapshot = await firestore
-                              .collection(`users/${recipient.uid}/fcmTokens`)
+                              .collection(`users/${recipient.username}/fcmTokens`)
                               .orderBy('createdAt', 'desc')
                               .limit(1)
                               .get();

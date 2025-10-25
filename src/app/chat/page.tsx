@@ -310,17 +310,6 @@ export default function ChatPage() {
     }
   }, []);
 
-  useEffect(() => {
-      // Don't auto-scroll on initial load or when loading more messages
-      if (messagesLoading) return;
-      
-      const lastMessage = messages[0];
-      if (lastMessage && lastMessage.sender === currentUser) {
-          scrollToBottom();
-      }
-  }, [messages, currentUser, messagesLoading, scrollToBottom]);
-
-
   const handleEmojiClick = (emoji: string) => {
     setInput(prev => prev + emoji);
     inputRef.current?.focus();

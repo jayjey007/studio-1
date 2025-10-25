@@ -202,6 +202,7 @@ export default function ChatPage() {
     const initialQuery = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
     getDocs(initialQuery).then(documentSnapshots => {
         const initialMessages = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+        // Note: These are oldest in the page... we display reversed so they are at the top
         setMessages(initialMessages);
         
         const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
@@ -211,11 +212,20 @@ export default function ChatPage() {
             setHasMore(false);
         }
         setMessagesLoading(false);
+
+        // Scroll to bottom after initial load
+        scrollToBottom();
     });
 
     // Listener for new messages
     const newMessagesQuery = query(messagesCollectionRef, orderBy('createdAt', 'asc'), where('createdAt', '>', initialLoadTime.current));
     const unsubscribeNewMessages = onSnapshot(newMessagesQuery, (snapshot) => {
+        let shouldScroll = false;
+        const viewport = viewportRef.current;
+        if (viewport) {
+             shouldScroll = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
+        }
+
         snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
                 const newMessage = { id: change.doc.id, ...change.doc.data() } as Message;
@@ -226,6 +236,11 @@ export default function ChatPage() {
                 setMessages(prev => prev.filter(m => m.id !== change.doc.id));
             }
         });
+
+        if (shouldScroll) {
+            scrollToBottom();
+        }
+
     }, (error) => {
         console.error("Error with real-time listener:", error);
         toast({ title: "Real-time Error", description: "Could not listen for new messages.", variant: "destructive" });
@@ -389,8 +404,10 @@ export default function ChatPage() {
       }
       
       const messagesCollection = collection(db, 'messages');
+      // The `onSnapshot` listener will handle adding the new message to state.
       const docRef = await addDoc(messagesCollection, messageData);
       
+      // We manually call scroll to bottom here
       scrollToBottom();
 
       const notificationResult = await sendNotification({
@@ -454,7 +471,7 @@ export default function ChatPage() {
     try {
       const msgRef = doc(db, "messages", deletingMessageId);
       await deleteDoc(msgRef);
-      setMessages(prev => prev.filter(m => m.id !== deletingMessageId));
+      // The onSnapshot listener will handle removal from state
       toast({
         title: "Success",
         description: "Message deleted.",
@@ -561,6 +578,7 @@ export default function ChatPage() {
     }
   };
 
+  // We reverse the array for display purposes, so newest messages are at the bottom.
   const displayedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
   useEffect(() => {

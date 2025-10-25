@@ -130,8 +130,7 @@ export default function ChatPage() {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  const initialLoadTime = useRef<Timestamp | null>(null);
-
+  
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
@@ -140,19 +139,17 @@ export default function ChatPage() {
       if (!messagesCollectionRef || !hasMore || messagesLoading) return;
       setMessagesLoading(true);
 
-      let q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
-      if (lastVisible) {
-          q = query(q, startAfter(lastVisible));
-      }
+      let q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
 
       try {
           const documentSnapshots = await getDocs(q);
           const newMessages = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
           
-          const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
-          setLastVisible(newLastVisible);
-
-          setMessages(prev => [...prev, ...newMessages]);
+          if (documentSnapshots.docs.length > 0) {
+            const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+            setLastVisible(newLastVisible);
+            setMessages(prev => [...prev, ...newMessages]);
+          }
           
           if(documentSnapshots.docs.length < MESSAGE_PAGE_SIZE){
               setHasMore(false);
@@ -176,80 +173,65 @@ export default function ChatPage() {
       { threshold: 1.0 }
     );
 
-    if (topOfListRef.current) {
-      observer.observe(topOfListRef.current);
+    const currentRef = topOfListRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
     }
 
     return () => {
-      if (topOfListRef.current) {
-        observer.unobserve(topOfListRef.current);
+      if (currentRef) {
+        observer.unobserve(currentRef);
       }
     };
   }, [hasMore, messagesLoading, loadMoreMessages]);
 
 
-  // Initial load and real-time listener for new messages
+  // Listener for initial load and real-time updates
   useEffect(() => {
     if (!messagesCollectionRef) return;
     setMessagesLoading(true);
 
-    // Set initial load time once
-    if (!initialLoadTime.current) {
-      initialLoadTime.current = Timestamp.now();
-    }
-    
-    // Initial fetch of first page
-    const initialQuery = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
-    getDocs(initialQuery).then(documentSnapshots => {
-        const initialMessages = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-        // Note: These are oldest in the page... we display reversed so they are at the top
-        setMessages(initialMessages);
-        
-        const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+    const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      let shouldScroll = false;
+      if (messages.length === 0) { // Only auto-scroll on initial load
+          shouldScroll = true;
+      } else { // Or if user is near the bottom for new messages
+          const viewport = viewportRef.current;
+          if (viewport) {
+              shouldScroll = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
+          }
+      }
+
+      const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+      setMessages(newMessages);
+
+      if (snapshot.docs.length > 0) {
+        const newLastVisible = snapshot.docs[snapshot.docs.length - 1];
         setLastVisible(newLastVisible);
-        
-        if (documentSnapshots.docs.length < MESSAGE_PAGE_SIZE) {
-            setHasMore(false);
-        }
-        setMessagesLoading(false);
+      }
 
-        // Scroll to bottom after initial load
-        scrollToBottom();
-    });
+      if (snapshot.docs.length < MESSAGE_PAGE_SIZE) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
+      
+      setMessagesLoading(false);
 
-    // Listener for new messages
-    const newMessagesQuery = query(messagesCollectionRef, orderBy('createdAt', 'asc'), where('createdAt', '>', initialLoadTime.current));
-    const unsubscribeNewMessages = onSnapshot(newMessagesQuery, (snapshot) => {
-        let shouldScroll = false;
-        const viewport = viewportRef.current;
-        if (viewport) {
-             shouldScroll = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
-        }
-
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const newMessage = { id: change.doc.id, ...change.doc.data() } as Message;
-                // Add to the START of the array (since it's reversed for display)
-                setMessages(prev => [newMessage, ...prev]);
-            }
-            if (change.type === "removed") {
-                setMessages(prev => prev.filter(m => m.id !== change.doc.id));
-            }
-        });
-
-        if (shouldScroll) {
-            scrollToBottom();
-        }
-
+      if (shouldScroll) {
+          scrollToBottom();
+      }
     }, (error) => {
         console.error("Error with real-time listener:", error);
         toast({ title: "Real-time Error", description: "Could not listen for new messages.", variant: "destructive" });
+        setMessagesLoading(false);
     });
 
-    return () => {
-      unsubscribeNewMessages();
-    };
-}, [messagesCollectionRef, toast]);
+    return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messagesCollectionRef, toast]);
 
 
   const handleLogout = useCallback(() => {
@@ -404,10 +386,8 @@ export default function ChatPage() {
       }
       
       const messagesCollection = collection(db, 'messages');
-      // The `onSnapshot` listener will handle adding the new message to state.
       const docRef = await addDoc(messagesCollection, messageData);
       
-      // We manually call scroll to bottom here
       scrollToBottom();
 
       const notificationResult = await sendNotification({
@@ -616,12 +596,13 @@ export default function ChatPage() {
           <ScrollArea className="h-full" ref={scrollAreaRef}>
              <div className="px-4 py-6 md:px-6">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
-                  <div ref={topOfListRef} className="h-1"/>
+                  
                   {messagesLoading && messages.length === 0 && (
                       <div className="flex justify-center items-center p-4">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
                   )}
+                   {hasMore && <div ref={topOfListRef} className="h-1"/>}
                   {displayedMessages && displayedMessages.map((message) => (
                     <div key={message.id} id={message.id} className={cn("flex w-full", message.sender === currentUser && "justify-end")}>
                       <div
@@ -822,3 +803,4 @@ export default function ChatPage() {
     </>
   );
 }
+

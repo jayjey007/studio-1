@@ -98,22 +98,21 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
     try
     {
 
-        const querySnapshot = await firestore
-                              .collection(`users/${recipient.username}/fcmTokens`)
-                              .orderBy('createdAt', 'desc')
-                              .limit(1)
-                              .get();
+        const doc = await firestore
+                                    .collection('fcmTokens')
+                                    .doc(recipient.username)
+                                    .get();
      
    
 
-    if (querySnapshot.empty) {
+    if (doc.exists) {
         const errorMsg = `No FCM token document found for username: ${recipient.username}`;
         console.log(errorMsg);        
         return { success: true, error: errorMsg };
     }
 
-    const latestTokenDoc = querySnapshot.docs[0];
-    const fcmToken = latestTokenDoc.data().token;
+    const fcmToken = doc.exists ? doc.data()!.token : null;
+;
 
     if (!fcmToken) {
         const errorMsg = `FCM token is empty for user: ${recipient.username}`;

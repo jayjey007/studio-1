@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, where, getDocs, writeBatch, updateDoc, limit, startAfter, getDocsFromCache, QueryDocumentSnapshot } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, where, getDocs, writeBatch, updateDoc, limit, startAfter, getDocsFromCache, QueryDocumentSnapshot,setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getMessaging, getToken, isSupported } from "firebase/messaging";
 import { Button } from "@/components/ui/button";
@@ -522,13 +522,13 @@ export default function ChatPage() {
             serviceWorkerRegistration,
         });
 
-        if (fcmToken) {
-          const tokensCollection = collection(db, 'fcmTokens');
-          await addDoc(tokensCollection, {
+        if (fcmToken) {         
+          const tokenRef = doc(db, 'fcmTokens', currentUser);
+          await setDoc(tokenRef, {
             token: fcmToken,
             username: currentUser,
             createdAt: serverTimestamp(),
-          });
+          },{merge: true});
           toast({ title: 'Success', description: 'Notification token saved.' });
         } else {
           toast({ title: "Error", description: "Could not get notification token.", variant: "destructive" });

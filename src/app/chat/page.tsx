@@ -136,7 +136,7 @@ export default function ChatPage() {
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
 
   const scrollToBottom = useCallback(() => {
-    bottomOfListRef.current?.scrollIntoView();
+    bottomOfListRef.current?.scrollIntoView({ behavior: 'auto' });
   }, []);
 
   const loadMoreMessages = useCallback(async () => {
@@ -152,7 +152,7 @@ export default function ChatPage() {
           if (documentSnapshots.docs.length > 0) {
             const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
             setLastVisible(newLastVisible);
-            setMessages(prev => [...newMessages, ...prev]);
+            setMessages(prev => [...prev, ...newMessages]);
           }
           
           if(documentSnapshots.docs.length < MESSAGE_PAGE_SIZE){
@@ -198,24 +198,26 @@ export default function ChatPage() {
     const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const isInitialLoad = messages.length === 0;
-      
-      const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-      
-      setMessages(newMessages);
+        const viewport = viewportRef.current;
+        const isAtBottom = viewport ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200 : true;
 
-      if (snapshot.docs.length > 0) {
-        const newLastVisible = snapshot.docs[snapshot.docs.length - 1];
-        setLastVisible(newLastVisible);
-      }
+        const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+        const isInitialLoad = messages.length === 0;
 
-      setHasMore(snapshot.docs.length >= MESSAGE_PAGE_SIZE);
-      
-      setMessagesLoading(false);
-      
-      if (isInitialLoad) {
-          setTimeout(() => scrollToBottom(), 100);
-      }
+        setMessages(newMessages, () => {
+             if (isInitialLoad || isAtBottom) {
+                // We use a timeout to ensure the DOM has updated before scrolling.
+                setTimeout(() => {
+                    scrollToBottom();
+                }, 0);
+            }
+        });
+
+        if (snapshot.docs.length > 0) {
+            setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+        }
+        setHasMore(snapshot.docs.length >= MESSAGE_PAGE_SIZE);
+        setMessagesLoading(false);
 
     }, (error) => {
         console.error("Error with real-time listener:", error);
@@ -226,18 +228,6 @@ export default function ChatPage() {
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messagesCollectionRef, toast]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-
-    // Check if user is near the bottom before new messages render
-    const isAtBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
-
-    if (isAtBottom) {
-        setTimeout(() => scrollToBottom(), 100);
-    }
-  }, [messages, scrollToBottom]);
 
 
   const handleLogout = useCallback(() => {
@@ -795,3 +785,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

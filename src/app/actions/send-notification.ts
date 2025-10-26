@@ -122,11 +122,11 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
 
     const payload: MulticastMessage = {
         tokens: [fcmToken],
-        notification: {
-            title: 'Fun Fact',
-            body: funFact,
-        },
         webpush: {
+            notification: {
+                title: 'Fun Fact',
+                body: funFact,
+            },
             fcmOptions: {
                 link: `/chat#${messageId}`,
             },
@@ -144,6 +144,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
                     sound: 'default',
                     badge: 1,
                 },
+                'messageId': messageId,
             },
         },
     };  

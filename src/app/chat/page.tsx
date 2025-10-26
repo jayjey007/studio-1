@@ -126,7 +126,7 @@ export default function ChatPage() {
   const isFilePickerOpen = useRef(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
   
@@ -135,74 +135,99 @@ export default function ChatPage() {
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
   
   const scrollToBottom = useCallback(() => {
-    // This is a robust way to scroll to the bottom.
+    // This is a robust way to scroll to the bottom, especially on mobile browsers.
     // The setTimeout with 0ms delay queues this to run after the current rendering cycle,
     // ensuring the new message is in the DOM.
     setTimeout(() => {
-      const viewport = viewportRef.current;
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
-      }
+        const viewport = viewportRef.current;
+        if (viewport) {
+            viewport.scrollTop = viewport.scrollHeight;
+        }
     }, 0);
   }, []);
-
-  // Initial load and real-time listener for NEW messages
+  
+  // New, more robust data loading logic
   useEffect(() => {
     if (!messagesCollectionRef) return;
-    setMessagesLoading(true);
+    
+    let unsubscribeNewMessages: (() => void) | null = null;
+    setIsLoading(true);
 
+    // 1. Initial load of the most recent messages
     const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
+    getDocs(q).then(snapshot => {
+      if (!snapshot.empty) {
+        const initialMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
+        setMessages(initialMessages);
+        
+        const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        setLastVisible(lastDoc);
+        setHasMore(snapshot.docs.length >= MESSAGE_PAGE_SIZE);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+        const firstNewMessageTimestamp = initialMessages[initialMessages.length - 1]?.createdAt || Timestamp.now();
+        
+        // 2. Set up a real-time listener for NEW messages only
+        const newMessagesQuery = query(messagesCollectionRef, orderBy('createdAt', 'asc'), where('createdAt', '>', firstNewMessageTimestamp));
+        unsubscribeNewMessages = onSnapshot(newMessagesQuery, (newSnapshot) => {
+          if (!newSnapshot.empty) {
+             const viewport = viewportRef.current;
+             const isAtBottom = viewport ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200 : true;
 
-        // On first load, set messages and scroll
-        if (messagesLoading) {
-            setMessages(newMessages);
-            if (newMessages.length > 0) {
-                setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-            }
-            setHasMore(newMessages.length >= MESSAGE_PAGE_SIZE);
-            scrollToBottom();
-        } else {
-             // For subsequent updates, check if we're at the bottom
-            const viewport = viewportRef.current;
-            const isAtBottom = viewport ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200 : true;
-
-            setMessages(newMessages);
-
+            newSnapshot.docChanges().forEach(change => {
+              if (change.type === 'added') {
+                setMessages(prev => [...prev, { id: change.doc.id, ...change.doc.data() } as Message]);
+              }
+            });
+            
             if (isAtBottom) {
                 scrollToBottom();
             }
-        }
-        
-        setMessagesLoading(false);
-    }, (error) => {
-        console.error("Error with real-time listener:", error);
-        toast({ title: "Real-time Error", description: "Could not listen for new messages.", variant: "destructive" });
-        setMessagesLoading(false);
+          }
+        });
+      }
+      setIsLoading(false);
+      scrollToBottom();
+    }).catch(error => {
+      console.error("Error fetching initial messages:", error);
+      toast({ title: "Error", description: "Could not load messages.", variant: "destructive" });
+      setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribeNewMessages) {
+        unsubscribeNewMessages();
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messagesCollectionRef]);
 
 
   const loadMoreMessages = useCallback(async () => {
-      if (!messagesCollectionRef || !hasMore || messagesLoading || !lastVisible) return;
+      if (!messagesCollectionRef || !hasMore || isLoading || !lastVisible) return;
       
-      setMessagesLoading(true);
+      setIsLoading(true);
 
       const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
 
       try {
           const documentSnapshots = await getDocs(q);
-          const newMessages = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+          const newMessages = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
           
           if (documentSnapshots.docs.length > 0) {
             const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+            
+            const currentScrollHeight = viewportRef.current?.scrollHeight || 0;
+            
+            setMessages(prev => [...newMessages, ...prev]);
             setLastVisible(newLastVisible);
-            setMessages(prev => [...prev, ...newMessages]);
+
+            // Maintain scroll position after loading older messages
+            setTimeout(() => {
+                if (viewportRef.current) {
+                    viewportRef.current.scrollTop = viewportRef.current.scrollHeight - currentScrollHeight;
+                }
+            }, 0);
+
           }
           
           if(documentSnapshots.docs.length < MESSAGE_PAGE_SIZE){
@@ -212,19 +237,19 @@ export default function ChatPage() {
           console.error("Error fetching more messages:", error);
           toast({ title: "Error", description: "Could not load older messages.", variant: "destructive" });
       } finally {
-          setMessagesLoading(false);
+          setIsLoading(false);
       }
-  }, [messagesCollectionRef, hasMore, lastVisible, messagesLoading, toast]);
+  }, [messagesCollectionRef, hasMore, lastVisible, isLoading, toast]);
   
   // Intersection observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !messagesLoading) {
+        if (entries[0].isIntersecting && hasMore && !isLoading) {
           loadMoreMessages();
         }
       },
-      { threshold: 1.0 }
+      { threshold: 1.0, root: viewportRef.current }
     );
 
     const currentRef = topOfListRef.current;
@@ -237,7 +262,7 @@ export default function ChatPage() {
         observer.unobserve(currentRef);
       }
     };
-  }, [hasMore, messagesLoading, loadMoreMessages]);
+  }, [hasMore, isLoading, loadMoreMessages]);
 
 
   const handleLogout = useCallback(() => {
@@ -448,7 +473,7 @@ export default function ChatPage() {
     try {
       const msgRef = doc(db, "messages", deletingMessageId);
       await deleteDoc(msgRef);
-      // The onSnapshot listener will handle removal from state
+      setMessages(prev => prev.filter(m => m.id !== deletingMessageId));
       toast({
         title: "Success",
         description: "Message deleted.",
@@ -555,8 +580,6 @@ export default function ChatPage() {
     }
   };
 
-  const displayedMessages = useMemo(() => [...messages].reverse(), [messages]);
-
   return (
     <>
       <div className="flex h-screen w-full flex-col bg-background">
@@ -587,14 +610,19 @@ export default function ChatPage() {
              <div className="px-4 py-6 md:px-6">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
                   
-                  {hasMore && !messagesLoading && <div ref={topOfListRef} className="h-1"/>}
-                  {messagesLoading && messages.length === 0 && (
+                  {isLoading && messages.length === 0 && (
                       <div className="flex justify-center items-center p-4">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
                   )}
+                  {hasMore && !isLoading && <div ref={topOfListRef} className="h-1"/>}
+                   {isLoading && messages.length > 0 && (
+                       <div className="flex justify-center py-2">
+                           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                       </div>
+                   )}
 
-                  {displayedMessages && displayedMessages.map((message) => (
+                  {messages.map((message) => (
                     <div key={message.id} id={message.id} className={cn("flex w-full", message.sender === currentUser && "justify-end")}>
                       <div
                         className={'w-auto max-w-[85%]'}
@@ -794,3 +822,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

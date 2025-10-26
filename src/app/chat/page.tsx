@@ -41,6 +41,9 @@ interface Message {
   replyingToText?: string;
   replyingToSender?: string;
   imageUrl?: string;
+  videoUrl?: string;
+  audioUrl?: string;
+  fileName?: string;
 }
 
 // Simple Caesar cipher for encoding
@@ -116,9 +119,10 @@ export default function ChatPage() {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<'image' | 'video' | 'audio' | null>(null);
 
   const [showNotificationButton, setShowNotificationButton] = useState(false);
 
@@ -134,18 +138,25 @@ export default function ChatPage() {
 
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
   const userScrolledUpRef = useRef(false);
+  const prevScrollHeightRef = useRef(0);
+
 
   const scrollToBottom = useCallback(() => {
     const viewport = viewportRef.current;
     if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
+      viewport.scrollTop = viewport.scrollHeight;
     }
   }, []);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (viewport && !userScrolledUpRef.current) {
-        viewport.scrollTop = viewport.scrollHeight;
+        const newScrollHeight = viewport.scrollHeight;
+        // Only scroll if we're adding messages to the bottom
+        if (newScrollHeight > prevScrollHeightRef.current) {
+            viewport.scrollTop = newScrollHeight;
+        }
+        prevScrollHeightRef.current = newScrollHeight;
     }
   }, [messages]);
 
@@ -165,18 +176,17 @@ export default function ChatPage() {
           // A simple way to merge new real-time updates with existing messages
           const messageMap = new Map(prevMessages.map(m => [m.id, m]));
           newMessages.forEach(m => messageMap.set(m.id, m));
-          return Array.from(messageMap.values()).sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
+          return Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
         });
         
-        const lastDoc = querySnapshot.docs[querySnapshot.docs.length > 0 ? querySnapshot.docs.length-1 : 0];
+        const lastDoc = querySnapshot.docs[querySnapshot.docs.length > 0 ? querySnapshot.docs.length - 1 : 0];
 
-        if (!lastVisible) { // Only set initial lastVisible
-          setLastVisible(lastDoc);
-        }
+        setLastVisible(lastDoc);
         
         setHasMore(querySnapshot.docs.length >= MESSAGE_PAGE_SIZE);
         
         setIsLoading(false);
+        userScrolledUpRef.current = false;
     }, (error) => {
         console.error("Error fetching initial messages:", error);
         toast({ title: "Error", description: "Could not load messages.", variant: "destructive" });
@@ -192,6 +202,7 @@ export default function ChatPage() {
       if (!messagesCollectionRef || !hasMore || isLoadingMore || !lastVisible) return;
       
       setIsLoadingMore(true);
+      userScrolledUpRef.current = true;
 
       const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
 
@@ -214,7 +225,6 @@ export default function ChatPage() {
                     viewport.scrollTop = viewport.scrollHeight - previousScrollHeight;
                 }, 0);
             }
-
           }
           
           if(documentSnapshots.docs.length < MESSAGE_PAGE_SIZE){
@@ -324,12 +334,19 @@ export default function ChatPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      const fileType = file.type.split('/')[0];
+      
+      if (['image', 'video', 'audio'].includes(fileType)) {
+        setMediaFile(file);
+        setMediaType(fileType as 'image' | 'video' | 'audio');
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setMediaPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        toast({ title: "Unsupported File", description: "Please select an image, video, or audio file.", variant: "destructive" });
+      }
     }
     isFilePickerOpen.current = false;
   };
@@ -339,9 +356,10 @@ export default function ChatPage() {
     fileInputRef.current?.click();
   };
 
-  const cancelImagePreview = () => {
-    setImageFile(null);
-    setImagePreview(null);
+  const cancelMediaPreview = () => {
+    setMediaFile(null);
+    setMediaPreview(null);
+    setMediaType(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -349,11 +367,11 @@ export default function ChatPage() {
   
   const handleSend = async () => {
     const trimmedInput = input.trim();
-    if (!trimmedInput && !imageFile) return;
+    if (!trimmedInput && !mediaFile) return;
     if (!currentUser || !db || !storage || !currentUserObject) return;
 
     setIsSending(true);
-    userScrolledUpRef.current = false; // Sending a message should always scroll to bottom
+    userScrolledUpRef.current = false;
 
     const recipientUser = ALL_USERS.find(u => u.username !== currentUser);
     if (!recipientUser) {
@@ -363,83 +381,53 @@ export default function ChatPage() {
     }
 
     try {
-      let imageUrl: string | undefined = undefined;
-
-      if (imageFile) {
-        const imageRef = ref(storage, `chat_images/${currentUserObject.uid}_${Date.now()}_${imageFile.name}`);
-        const snapshot = await uploadBytes(imageRef, imageFile);
-        imageUrl = await getDownloadURL(snapshot.ref);
-      }
-
-      const messageTextToSend = trimmedInput || ' ';
-      const encodedMessageText = encodeMessage(messageTextToSend);
-
-      const replyingToData = replyingTo ? {
-        replyingToId: replyingTo.id,
-        replyingToText: getMessageText(replyingTo, 50),
-        replyingToSender: replyingTo.sender,
-      } : {};
-
       const messageData: Omit<Message, 'id' | 'createdAt'> & { createdAt: any } = {
-        scrambledText: encodedMessageText,
+        scrambledText: encodeMessage(trimmedInput || ' '),
         sender: currentUser,
         recipient: recipientUser.username,
         senderUid: currentUserObject.uid,
         recipientUid: recipientUser.uid,
         createdAt: serverTimestamp(),
         isEncoded: true,
-        ...replyingToData,
       };
-      
-       if (imageUrl) {
-        messageData.imageUrl = imageUrl;
+
+      if (mediaFile && mediaType) {
+        const folder = mediaType === 'image' ? 'chat_images' : mediaType === 'video' ? 'chat_videos' : 'chat_audios';
+        const mediaRef = ref(storage, `${folder}/${currentUserObject.uid}_${Date.now()}_${mediaFile.name}`);
+        const snapshot = await uploadBytes(mediaRef, mediaFile);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        if (mediaType === 'image') messageData.imageUrl = downloadURL;
+        if (mediaType === 'video') messageData.videoUrl = downloadURL;
+        if (mediaType === 'audio') {
+            messageData.audioUrl = downloadURL;
+            messageData.fileName = mediaFile.name;
+        }
+      }
+
+      if (replyingTo) {
+        messageData.replyingToId = replyingTo.id;
+        messageData.replyingToText = getMessageText(replyingTo, 50);
+        messageData.replyingToSender = replyingTo.sender;
       }
       
       const docRef = await addDocumentNonBlocking(collection(db, 'messages'), messageData);
       
-      const notificationResult = await sendNotification({
-        message: messageTextToSend,
+      await sendNotification({
+        message: trimmedInput,
         sender: currentUser,
         messageId: docRef?.id || ''
       });
 
-      if (!notificationResult.success && !notificationResult.skipped) {
-        toast({
-            title: "Notification Error",
-            description: notificationResult.error || "Could not send notification.",
-            variant: "destructive",
-        });
-      }
-
       setInput("");
       setReplyingTo(null);
-      cancelImagePreview();
+      cancelMediaPreview();
 
     } catch (error: any) {
       console.error("Error sending message:", error);
-      let description = `Could not send message. Please try again.`;
-
-      if (error.code) {
-        switch (error.code) {
-          case 'storage/unauthorized':
-            description = "Permission Denied: You don't have permission to upload files. Please check storage security rules.";
-            break;
-          case 'storage/no-default-bucket':
-            description = "Storage Error: Bucket not configured. Please check your Firebase project setup.";
-            break;
-          case 'permission-denied':
-            description = "Permission Denied: You don't have permission to send messages. Please check Firestore security rules.";
-            break;
-          default:
-            description = `An unexpected error occurred: ${error.code} - ${error.message}`;
-        }
-      } else {
-         description = `An unexpected error occurred: ${error.message || String(error)}`;
-      }
-
       toast({
         title: "Error Sending Message",
-        description: description,
+        description: `An unexpected error occurred: ${error.message || String(error)}`,
         variant: "destructive",
       });
     } finally {
@@ -458,7 +446,6 @@ export default function ChatPage() {
     try {
       const msgRef = doc(db, "messages", deletingMessageId);
       await deleteDoc(msgRef);
-      // Message will be removed by the onSnapshot listener
       toast({
         title: "Success",
         description: "Message deleted.",
@@ -507,71 +494,40 @@ export default function ChatPage() {
 
   const handleRequestPermission = async () => {
     if (!firebaseApp || !db || !currentUser) {
-      toast({
-        title: "Error",
-        description: "Firebase not initialized or user not logged in.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Firebase not initialized or user not logged in.", variant: "destructive" });
       return;
     }
-
     try {
       const messaging = getMessaging(firebaseApp);
       const permission = await Notification.requestPermission();
-
       if (permission === 'granted') {
         setShowNotificationButton(false);
         toast({ title: "Success", description: "Notification permission granted." });
-        
         const serviceWorkerRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        const fcmToken = await getToken(messaging, { 
-            vapidKey: 'BL8V7BHhy6nE9WICeE09mNiKFC1u71vroAb3p7JyjFpI5n05yZvMx84o14MFE4O3944a8IDYKyh0dzR1bm5PouU',
-            serviceWorkerRegistration,
-        });
-
-        if (fcmToken) {         
+        const fcmToken = await getToken(messaging, { vapidKey: 'BL8V7BHhy6nE9WICeE09mNiKFC1u71vroAb3p7JyjFpI5n05yZvMx84o14MFE4O3944a8IDYKyh0dzR1bm5PouU', serviceWorkerRegistration });
+        if (fcmToken) {
           const tokenRef = doc(db, 'fcmTokens', currentUser);
-          await setDoc(tokenRef, {
-            token: fcmToken,
-            username: currentUser,
-            createdAt: serverTimestamp(),
-          },{merge: true});
+          await setDocumentMergeNonBlocking(tokenRef, { token: fcmToken, username: currentUser, createdAt: serverTimestamp() });
           toast({ title: 'Success', description: 'Notification token saved.' });
         } else {
           toast({ title: "Error", description: "Could not get notification token.", variant: "destructive" });
         }
       } else {
-        toast({
-          title: "Permission Denied",
-          description: "You will not receive notifications.",
-          variant: "destructive",
-        });
+        toast({ title: "Permission Denied", description: "You will not receive notifications.", variant: "destructive" });
       }
     } catch (error: any) {
       console.error('Error getting notification permission:', error);
-       if (error.code === 'permission-denied' || error.code === 'messaging/permission-denied') {
-             toast({
-                title: 'Error Enabling Notifications',
-                description: 'Permission to receive notifications was denied. Please check your browser settings.',
-                variant: 'destructive',
-            });
-        } else {
-            toast({
-                title: "Error Requesting Permission",
-                description: error.message || "An error occurred while requesting notification permission.",
-                variant: "destructive",
-            });
-        }
+      toast({ title: "Error Requesting Permission", description: error.message || "An error occurred.", variant: "destructive" });
     }
   };
 
   const handleScroll = () => {
     const viewport = viewportRef.current;
     if (viewport) {
-        const { scrollTop, scrollHeight, clientHeight } = viewport;
-        // Check if user is scrolled near the bottom
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-        userScrolledUpRef.current = !isAtBottom;
+      const { scrollTop, scrollHeight, clientHeight } = viewport;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+      userScrolledUpRef.current = !isAtBottom;
+      prevScrollHeightRef.current = scrollHeight;
     }
   };
 
@@ -622,25 +578,12 @@ export default function ChatPage() {
 
                   {messages.map((message) => (
                     <div key={message.id} id={message.id} className={cn("flex w-full", message.sender === currentUser && "justify-end")}>
-                      <div
-                        className={'w-auto max-w-[85%]'}
-                      >
-                        <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => {
-                          if (!isOpen) setSelectedMessageId(null);
-                        }}>
+                      <div className={'w-auto max-w-[85%]'}>
+                        <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => { if (!isOpen) setSelectedMessageId(null); }}>
                           <PopoverTrigger asChild>
                             <div
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMessageSelect(message);
-                              }}
-                              className={cn(
-                                "rounded-lg p-3 text-sm cursor-pointer w-auto",
-                                message.sender === currentUser
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-card text-card-foreground",
-                                selectedMessageId === message.id ? (message.sender === currentUser ? 'bg-blue-700' : 'bg-muted') : ''
-                              )}
+                              onClick={(e) => { e.stopPropagation(); handleMessageSelect(message); }}
+                              className={cn("rounded-lg p-3 text-sm cursor-pointer w-auto", message.sender === currentUser ? "bg-primary text-primary-foreground" : "bg-card text-card-foreground", selectedMessageId === message.id ? (message.sender === currentUser ? 'bg-blue-700' : 'bg-muted') : '')}
                             >
                               {message.replyingToId && message.replyingToSender && (
                                   <a href={`#${message.replyingToId}`} className="block mb-2 p-2 rounded-md bg-black/20 hover:bg-black/30 transition-colors">
@@ -649,43 +592,38 @@ export default function ChatPage() {
                                   </a>
                               )}
                               {message.imageUrl && (
-                                  <div className="mb-2">
-                                    <Image
-                                      src={message.imageUrl}
-                                      alt="Attached image"
-                                      width={300}
-                                      height={300}
-                                      className="max-w-full h-auto rounded-md"
-                                    />
-                                  </div>
-                                )}
-                              <LinkifiedText text={getMessageText(message)} />
+                                <div className="mb-2">
+                                  <Image src={message.imageUrl} alt="Attached image" width={300} height={300} className="max-w-full h-auto rounded-md" />
+                                </div>
+                              )}
+                              {message.videoUrl && (
+                                <div className="mb-2">
+                                  <video src={message.videoUrl} controls className="max-w-full h-auto rounded-md" />
+                                </div>
+                              )}
+                              {message.audioUrl && (
+                                <div className="my-2">
+                                  <audio src={message.audioUrl} controls className="w-full" />
+                                  {message.fileName && <p className="text-xs mt-1 text-muted-foreground/80">{message.fileName}</p>}
+                                </div>
+                              )}
+                              {getMessageText(message).trim() && <LinkifiedText text={getMessageText(message)} />}
                               {message.createdAt && (
-                                  <p
-                                  className={cn(
-                                      "text-xs mt-1",
-                                      message.sender === currentUser
-                                      ? "text-primary-foreground/70"
-                                      : "text-muted-foreground/70"
-                                  )}
-                                  >
+                                <p className={cn("text-xs mt-1", message.sender === currentUser ? "text-primary-foreground/70" : "text-muted-foreground/70")}>
                                   {format(message.createdAt.toDate(), "h:mm a")}
-                                  </p>
+                                </p>
                               )}
                             </div>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-1" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1">
                               <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleReplyClick(message)}>
-                                  <MessageSquareReply className="h-4 w-4" />
+                                <MessageSquareReply className="h-4 w-4" />
                               </Button>
                               {message.sender === currentUser && (
-                                  <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => {
-                                    setDeletingMessageId(message.id);
-                                    setSelectedMessageId(null);
-                                  }}>
-                                      <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => { setDeletingMessageId(message.id); setSelectedMessageId(null); }}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               )}
                             </div>
                           </PopoverContent>
@@ -698,37 +636,23 @@ export default function ChatPage() {
           </ScrollArea>
         </main>
         <footer className="shrink-0 border-t bg-card p-2 md:p-4">
-           {replyingTo && !imagePreview && (
+           {replyingTo && !mediaPreview && (
               <div className="relative rounded-t-lg bg-muted/50 p-2 pl-4 pr-8 text-sm">
                 <p className="font-semibold text-xs text-muted-foreground">
                   Replying to {replyingTo.sender === currentUser ? 'yourself' : replyingTo.sender}
                 </p>
                 <p className="truncate text-foreground">{getMessageText(replyingTo, 100)}</p>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-1/2 right-1 -translate-y-1/2 h-6 w-6"
-                  onClick={() => setReplyingTo(null)}
-                >
+                <Button variant="ghost" size="icon" className="absolute top-1/2 right-1 -translate-y-1/2 h-6 w-6" onClick={() => setReplyingTo(null)}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             )}
-             {imagePreview && (
+             {mediaPreview && (
               <div className="relative rounded-t-lg bg-muted/50 p-2">
-                <Image
-                  src={imagePreview}
-                  alt="Image preview"
-                  width={80}
-                  height={80}
-                  className="h-20 w-20 rounded-md object-cover"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-1 right-1 h-6 w-6"
-                  onClick={cancelImagePreview}
-                >
+                {mediaType === 'image' && <Image src={mediaPreview} alt="Image preview" width={80} height={80} className="h-20 w-20 rounded-md object-cover" />}
+                {mediaType === 'video' && <video src={mediaPreview} className="h-20 w-auto rounded-md" />}
+                {mediaType === 'audio' && <audio src={mediaPreview} controls className="h-10 w-full" />}
+                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={cancelMediaPreview}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -739,7 +663,7 @@ export default function ChatPage() {
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 className="hidden"
-                accept="image/*"
+                accept="image/*,video/*,audio/*"
             />
              <Button
                 variant="ghost"
@@ -761,13 +685,7 @@ export default function ChatPage() {
                 <PopoverContent className="w-auto p-2" side="top" align="end">
                 <div className="grid grid-cols-6 gap-1">
                     {EMOJIS.map((emoji) => (
-                    <Button
-                        key={emoji}
-                        variant="ghost"
-                        size="icon"
-                        className="text-xl"
-                        onClick={() => handleEmojiClick(emoji)}
-                    >
+                    <Button key={emoji} variant="ghost" size="icon" className="text-xl" onClick={() => handleEmojiClick(emoji)}>
                         {emoji}
                     </Button>
                     ))}
@@ -781,7 +699,7 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
               disabled={isSending}
-              className={cn("max-h-32", (replyingTo || imagePreview) ? "rounded-t-none" : "")}
+              className={cn("max-h-32", (replyingTo || mediaPreview) ? "rounded-t-none" : "")}
               rows={1}
             />
             <Button
@@ -789,7 +707,7 @@ export default function ChatPage() {
                 size="icon"
                 className="h-10 w-10 shrink-0"
                 onClick={handleSend}
-                disabled={isSending || (!input.trim() && !imageFile)}
+                disabled={isSending || (!input.trim() && !mediaFile)}
             >
                 {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
                 <span className="sr-only">Send</span>
@@ -820,3 +738,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

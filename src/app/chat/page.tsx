@@ -111,7 +111,6 @@ export default function ChatPage() {
   const { toast } = useToast();
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topOfListRef = useRef<HTMLDivElement | null>(null);
-  const bottomOfListRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -136,7 +135,14 @@ export default function ChatPage() {
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
 
   const scrollToBottom = useCallback(() => {
-    bottomOfListRef.current?.scrollIntoView({ behavior: "auto" });
+    // This function will be queued to run after the browser has finished its current rendering cycle.
+    // This ensures that the scroll height is calculated *after* new messages are rendered.
+    setTimeout(() => {
+      const viewport = viewportRef.current;
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+      }
+    }, 0);
   }, []);
 
   const loadMoreMessages = useCallback(async () => {
@@ -207,7 +213,7 @@ export default function ChatPage() {
         setMessages(newMessages);
 
         if (isInitialLoad || isAtBottom) {
-          setTimeout(scrollToBottom, 0);
+          scrollToBottom();
         }
 
         if (snapshot.docs.length > 0) {
@@ -654,7 +660,6 @@ export default function ChatPage() {
                       </div>
                     </div>
                   ))}
-                  <div ref={bottomOfListRef} />
               </div>
             </div>
           </ScrollArea>
@@ -782,5 +787,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

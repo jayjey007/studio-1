@@ -127,6 +127,7 @@ export default function ChatPage() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
   
@@ -135,9 +136,6 @@ export default function ChatPage() {
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
   
   const scrollToBottom = useCallback(() => {
-    // This is a robust way to scroll to the bottom, especially on mobile browsers.
-    // The setTimeout with 0ms delay queues this to run after the current rendering cycle,
-    // ensuring the new message is in the DOM.
     setTimeout(() => {
         const viewport = viewportRef.current;
         if (viewport) {
@@ -145,67 +143,41 @@ export default function ChatPage() {
         }
     }, 0);
   }, []);
-  
-  // New, more robust data loading logic
+
+  // Effect for fetching messages
   useEffect(() => {
     if (!messagesCollectionRef) return;
-    
-    let unsubscribeNewMessages: (() => void) | null = null;
+
     setIsLoading(true);
 
-    // 1. Initial load of the most recent messages
     const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
-    getDocs(q).then(snapshot => {
-      if (!snapshot.empty) {
-        const initialMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const initialMessages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
+        
         setMessages(initialMessages);
         
-        const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
         setLastVisible(lastDoc);
-        setHasMore(snapshot.docs.length >= MESSAGE_PAGE_SIZE);
-
-        const firstNewMessageTimestamp = initialMessages[initialMessages.length - 1]?.createdAt || Timestamp.now();
+        setHasMore(querySnapshot.docs.length >= MESSAGE_PAGE_SIZE);
         
-        // 2. Set up a real-time listener for NEW messages only
-        const newMessagesQuery = query(messagesCollectionRef, orderBy('createdAt', 'asc'), where('createdAt', '>', firstNewMessageTimestamp));
-        unsubscribeNewMessages = onSnapshot(newMessagesQuery, (newSnapshot) => {
-          if (!newSnapshot.empty) {
-             const viewport = viewportRef.current;
-             const isAtBottom = viewport ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200 : true;
-
-            newSnapshot.docChanges().forEach(change => {
-              if (change.type === 'added') {
-                setMessages(prev => [...prev, { id: change.doc.id, ...change.doc.data() } as Message]);
-              }
-            });
-            
-            if (isAtBottom) {
-                scrollToBottom();
-            }
-          }
-        });
-      }
-      setIsLoading(false);
-      scrollToBottom();
-    }).catch(error => {
-      console.error("Error fetching initial messages:", error);
-      toast({ title: "Error", description: "Could not load messages.", variant: "destructive" });
-      setIsLoading(false);
+        setIsLoading(false);
+        scrollToBottom();
+    }, (error) => {
+        console.error("Error fetching initial messages:", error);
+        toast({ title: "Error", description: "Could not load messages.", variant: "destructive" });
+        setIsLoading(false);
     });
 
-    return () => {
-      if (unsubscribeNewMessages) {
-        unsubscribeNewMessages();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messagesCollectionRef]);
 
 
   const loadMoreMessages = useCallback(async () => {
-      if (!messagesCollectionRef || !hasMore || isLoading || !lastVisible) return;
+      if (!messagesCollectionRef || !hasMore || isLoadingMore || !lastVisible) return;
       
-      setIsLoading(true);
+      setIsLoadingMore(true);
 
       const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
 
@@ -237,15 +209,15 @@ export default function ChatPage() {
           console.error("Error fetching more messages:", error);
           toast({ title: "Error", description: "Could not load older messages.", variant: "destructive" });
       } finally {
-          setIsLoading(false);
+          setIsLoadingMore(false);
       }
-  }, [messagesCollectionRef, hasMore, lastVisible, isLoading, toast]);
+  }, [messagesCollectionRef, hasMore, lastVisible, isLoadingMore, toast]);
   
   // Intersection observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading) {
+        if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore) {
           loadMoreMessages();
         }
       },
@@ -262,7 +234,7 @@ export default function ChatPage() {
         observer.unobserve(currentRef);
       }
     };
-  }, [hasMore, isLoading, loadMoreMessages]);
+  }, [hasMore, isLoading, isLoadingMore, loadMoreMessages]);
 
 
   const handleLogout = useCallback(() => {
@@ -473,7 +445,7 @@ export default function ChatPage() {
     try {
       const msgRef = doc(db, "messages", deletingMessageId);
       await deleteDoc(msgRef);
-      setMessages(prev => prev.filter(m => m.id !== deletingMessageId));
+      // Message will be removed by the onSnapshot listener
       toast({
         title: "Success",
         description: "Message deleted.",
@@ -610,13 +582,15 @@ export default function ChatPage() {
              <div className="px-4 py-6 md:px-6">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
                   
-                  {isLoading && messages.length === 0 && (
+                  {isLoading && (
                       <div className="flex justify-center items-center p-4">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
                   )}
+                  
                   {hasMore && !isLoading && <div ref={topOfListRef} className="h-1"/>}
-                   {isLoading && messages.length > 0 && (
+
+                   {isLoadingMore && (
                        <div className="flex justify-center py-2">
                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                        </div>

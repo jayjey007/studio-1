@@ -1,10 +1,10 @@
 
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, where, getDocs, writeBatch, updateDoc, limit, startAfter, getDocsFromCache, QueryDocumentSnapshot,setDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, limit, startAfter, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getMessaging, getToken, isSupported } from "firebase/messaging";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical } from "lucide-react";
 import { format } from "date-fns";
-import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking } from "@/firebase";
-
+import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentNonBlocking } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/app/actions/send-notification";
 
@@ -128,21 +127,28 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot | null>(null);
+  const [lastVisible, setLastVisible] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
   
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
-  
+  const userScrolledUpRef = useRef(false);
+
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-        const viewport = viewportRef.current;
-        if (viewport) {
-            viewport.scrollTop = viewport.scrollHeight;
-        }
-    }, 0);
+    const viewport = viewportRef.current;
+    if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+    }
   }, []);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewport && !userScrolledUpRef.current) {
+        viewport.scrollTop = viewport.scrollHeight;
+    }
+  }, [messages]);
+
 
   // Effect for fetching messages
   useEffect(() => {
@@ -153,16 +159,24 @@ export default function ChatPage() {
     const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const initialMessages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
+        const newMessages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
         
-        setMessages(initialMessages);
+        setMessages(prevMessages => {
+          // A simple way to merge new real-time updates with existing messages
+          const messageMap = new Map(prevMessages.map(m => [m.id, m]));
+          newMessages.forEach(m => messageMap.set(m.id, m));
+          return Array.from(messageMap.values()).sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
+        });
         
-        const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-        setLastVisible(lastDoc);
+        const lastDoc = querySnapshot.docs[querySnapshot.docs.length > 0 ? querySnapshot.docs.length-1 : 0];
+
+        if (!lastVisible) { // Only set initial lastVisible
+          setLastVisible(lastDoc);
+        }
+        
         setHasMore(querySnapshot.docs.length >= MESSAGE_PAGE_SIZE);
         
         setIsLoading(false);
-        scrollToBottom();
     }, (error) => {
         console.error("Error fetching initial messages:", error);
         toast({ title: "Error", description: "Could not load messages.", variant: "destructive" });
@@ -188,17 +202,18 @@ export default function ChatPage() {
           if (documentSnapshots.docs.length > 0) {
             const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
             
-            const currentScrollHeight = viewportRef.current?.scrollHeight || 0;
+            const viewport = viewportRef.current;
+            const previousScrollHeight = viewport?.scrollHeight || 0;
             
             setMessages(prev => [...newMessages, ...prev]);
             setLastVisible(newLastVisible);
 
             // Maintain scroll position after loading older messages
-            setTimeout(() => {
-                if (viewportRef.current) {
-                    viewportRef.current.scrollTop = viewportRef.current.scrollHeight - currentScrollHeight;
-                }
-            }, 0);
+            if (viewport) {
+                setTimeout(() => {
+                    viewport.scrollTop = viewport.scrollHeight - previousScrollHeight;
+                }, 0);
+            }
 
           }
           
@@ -338,6 +353,7 @@ export default function ChatPage() {
     if (!currentUser || !db || !storage || !currentUserObject) return;
 
     setIsSending(true);
+    userScrolledUpRef.current = false; // Sending a message should always scroll to bottom
 
     const recipientUser = ALL_USERS.find(u => u.username !== currentUser);
     if (!recipientUser) {
@@ -379,15 +395,12 @@ export default function ChatPage() {
         messageData.imageUrl = imageUrl;
       }
       
-      const messagesCollection = collection(db, 'messages');
-      const docRef = await addDoc(messagesCollection, messageData);
+      const docRef = await addDocumentNonBlocking(collection(db, 'messages'), messageData);
       
-      scrollToBottom();
-
       const notificationResult = await sendNotification({
         message: messageTextToSend,
         sender: currentUser,
-        messageId: docRef.id
+        messageId: docRef?.id || ''
       });
 
       if (!notificationResult.success && !notificationResult.skipped) {
@@ -552,6 +565,17 @@ export default function ChatPage() {
     }
   };
 
+  const handleScroll = () => {
+    const viewport = viewportRef.current;
+    if (viewport) {
+        const { scrollTop, scrollHeight, clientHeight } = viewport;
+        // Check if user is scrolled near the bottom
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+        userScrolledUpRef.current = !isAtBottom;
+    }
+  };
+
+
   return (
     <>
       <div className="flex h-screen w-full flex-col bg-background">
@@ -578,7 +602,7 @@ export default function ChatPage() {
             </DropdownMenu>
           </div>
         <main className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full" viewportRef={viewportRef}>
+          <ScrollArea className="h-full" viewportRef={viewportRef} onScroll={handleScroll}>
              <div className="px-4 py-6 md:px-6">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
                   
@@ -796,5 +820,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

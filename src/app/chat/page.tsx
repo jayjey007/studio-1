@@ -109,7 +109,6 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const { toast } = useToast();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topOfListRef = useRef<HTMLDivElement | null>(null);
   const bottomOfListRef = useRef<HTMLDivElement>(null);
@@ -137,19 +136,14 @@ export default function ChatPage() {
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
 
   const scrollToBottom = useCallback(() => {
-    // We use a timeout to ensure the DOM has updated before we scroll.
-    setTimeout(() => {
-        if (viewportRef.current) {
-            viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
-        }
-    }, 0);
+    bottomOfListRef.current?.scrollIntoView();
   }, []);
 
   const loadMoreMessages = useCallback(async () => {
       if (!messagesCollectionRef || !hasMore || messagesLoading || !lastVisible) return;
       setMessagesLoading(true);
 
-      let q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
+      const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
 
       try {
           const documentSnapshots = await getDocs(q);
@@ -158,8 +152,7 @@ export default function ChatPage() {
           if (documentSnapshots.docs.length > 0) {
             const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
             setLastVisible(newLastVisible);
-            // Append older messages to the end of the list (which is chronologically the beginning)
-            setMessages(prev => [...prev, ...newMessages]);
+            setMessages(prev => [...newMessages, ...prev]);
           }
           
           if(documentSnapshots.docs.length < MESSAGE_PAGE_SIZE){
@@ -206,19 +199,7 @@ export default function ChatPage() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const isInitialLoad = messages.length === 0;
-
-      const viewport = viewportRef.current;
-      let shouldScroll = false;
       
-      if (isInitialLoad) {
-          shouldScroll = true;
-      } else if (viewport) {
-          const isAtBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
-          if (isAtBottom) {
-              shouldScroll = true;
-          }
-      }
-
       const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
       
       setMessages(newMessages);
@@ -232,8 +213,8 @@ export default function ChatPage() {
       
       setMessagesLoading(false);
       
-      if (shouldScroll) {
-          scrollToBottom();
+      if (isInitialLoad) {
+          setTimeout(() => scrollToBottom(), 100);
       }
 
     }, (error) => {
@@ -244,7 +225,19 @@ export default function ChatPage() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesCollectionRef, toast, scrollToBottom]);
+  }, [messagesCollectionRef, toast]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    // Check if user is near the bottom before new messages render
+    const isAtBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
+
+    if (isAtBottom) {
+        setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [messages, scrollToBottom]);
 
 
   const handleLogout = useCallback(() => {
@@ -392,7 +385,6 @@ export default function ChatPage() {
       const messagesCollection = collection(db, 'messages');
       const docRef = await addDoc(messagesCollection, messageData);
       
-      // Real-time listener handles new messages, but we explicitly scroll for user-sent messages.
       scrollToBottom();
 
       const notificationResult = await sendNotification({
@@ -563,14 +555,7 @@ export default function ChatPage() {
     }
   };
 
-  // We reverse the array for display purposes, so newest messages are at the bottom.
   const displayedMessages = useMemo(() => [...messages].reverse(), [messages]);
-
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-        viewportRef.current = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-    }
-  }, []);
 
   return (
     <>
@@ -598,7 +583,7 @@ export default function ChatPage() {
             </DropdownMenu>
           </div>
         <main className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full" ref={scrollAreaRef}>
+          <ScrollArea className="h-full" viewportRef={viewportRef}>
              <div className="px-4 py-6 md:px-6">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
                   

@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/componentsui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical } from "lucide-react";
 import { format } from "date-fns";
@@ -112,6 +112,7 @@ export default function ChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topOfListRef = useRef<HTMLDivElement | null>(null);
+  const bottomOfListRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -134,6 +135,18 @@ export default function ChatPage() {
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
+
+  const scrollToBottom = useCallback(() => {
+    bottomOfListRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  // Effect to scroll to bottom when messages array changes, but only for the first load or new messages.
+  useEffect(() => {
+    if (messages.length) {
+        scrollToBottom();
+    }
+  }, [messages, scrollToBottom]);
+
 
   const loadMoreMessages = useCallback(async () => {
       if (!messagesCollectionRef || !hasMore || messagesLoading) return;
@@ -197,10 +210,16 @@ export default function ChatPage() {
       let shouldScroll = false;
       const viewport = viewportRef.current;
       
-      if (!messages.length) { // Only auto-scroll on initial load
+      const isInitialLoad = messages.length === 0;
+
+      if (isInitialLoad && viewportRef.current) {
           shouldScroll = true;
-      } else if (viewport) { // Or if user is near the bottom for new messages
-          shouldScroll = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
+      } else if (viewport) {
+          // Check if user is scrolled near the bottom before new messages arrive
+          const isAtBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
+          if (isAtBottom) {
+              shouldScroll = true;
+          }
       }
 
       const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
@@ -218,9 +237,12 @@ export default function ChatPage() {
       }
       
       setMessagesLoading(false);
+      
       if (shouldScroll) {
-          scrollToBottom();
+          // We use a timeout to allow the DOM to update before we scroll
+          setTimeout(scrollToBottom, 100);
       }
+
     }, (error) => {
         console.error("Error with real-time listener:", error);
         toast({ title: "Real-time Error", description: "Could not listen for new messages.", variant: "destructive" });
@@ -229,7 +251,7 @@ export default function ChatPage() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesCollectionRef, toast]);
+  }, [messagesCollectionRef, toast, scrollToBottom]);
 
 
   const handleLogout = useCallback(() => {
@@ -294,15 +316,6 @@ export default function ChatPage() {
         }
     };
     checkSupport();
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    const viewport = viewportRef.current;
-    if (viewport) {
-      setTimeout(() => {
-        viewport.scrollTop = viewport.scrollHeight;
-      }, 500); // Increased timeout for better mobile browser compatibility
-    }
   }, []);
 
   const handleEmojiClick = (emoji: string) => {
@@ -386,8 +399,7 @@ export default function ChatPage() {
       const messagesCollection = collection(db, 'messages');
       const docRef = await addDoc(messagesCollection, messageData);
       
-      // We don't call scrollToBottom here directly anymore,
-      // the onSnapshot listener will handle it.
+      // The onSnapshot listener will handle scrolling for new messages.
 
       const notificationResult = await sendNotification({
         message: messageTextToSend,
@@ -675,6 +687,7 @@ export default function ChatPage() {
                       </div>
                     </div>
                   ))}
+                  <div ref={bottomOfListRef} />
               </div>
             </div>
           </ScrollArea>
@@ -802,3 +815,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

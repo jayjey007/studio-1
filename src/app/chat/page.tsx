@@ -136,7 +136,7 @@ export default function ChatPage() {
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
 
   const scrollToBottom = useCallback(() => {
-    bottomOfListRef.current?.scrollIntoView({ behavior: 'auto' });
+    bottomOfListRef.current?.scrollIntoView({ behavior: "auto" });
   }, []);
 
   const loadMoreMessages = useCallback(async () => {
@@ -204,14 +204,11 @@ export default function ChatPage() {
         const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
         const isInitialLoad = messages.length === 0;
 
-        setMessages(newMessages, () => {
-             if (isInitialLoad || isAtBottom) {
-                // We use a timeout to ensure the DOM has updated before scrolling.
-                setTimeout(() => {
-                    scrollToBottom();
-                }, 0);
-            }
-        });
+        setMessages(newMessages);
+
+        if (isInitialLoad || isAtBottom) {
+          setTimeout(scrollToBottom, 0);
+        }
 
         if (snapshot.docs.length > 0) {
             setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
@@ -227,7 +224,7 @@ export default function ChatPage() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesCollectionRef, toast]);
+  }, [messagesCollectionRef, toast, scrollToBottom]);
 
 
   const handleLogout = useCallback(() => {

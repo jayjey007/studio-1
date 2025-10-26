@@ -112,7 +112,7 @@ export default function ChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topOfListRef = useRef<HTMLDivElement | null>(null);
-  const bottomOfListRef = useRef<HTMLDivElement | null>(null);
+  const bottomOfListRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -137,11 +137,16 @@ export default function ChatPage() {
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
 
   const scrollToBottom = useCallback(() => {
-    bottomOfListRef.current?.scrollIntoView({ behavior: "smooth" });
+    // We use a timeout to ensure the DOM has updated before we scroll.
+    setTimeout(() => {
+        if (viewportRef.current) {
+            viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+        }
+    }, 0);
   }, []);
 
   const loadMoreMessages = useCallback(async () => {
-      if (!messagesCollectionRef || !hasMore || messagesLoading) return;
+      if (!messagesCollectionRef || !hasMore || messagesLoading || !lastVisible) return;
       setMessagesLoading(true);
 
       let q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
@@ -153,6 +158,7 @@ export default function ChatPage() {
           if (documentSnapshots.docs.length > 0) {
             const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
             setLastVisible(newLastVisible);
+            // Append older messages to the end of the list (which is chronologically the beginning)
             setMessages(prev => [...prev, ...newMessages]);
           }
           
@@ -199,15 +205,14 @@ export default function ChatPage() {
     const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      let shouldScroll = false;
-      const viewport = viewportRef.current;
-      
       const isInitialLoad = messages.length === 0;
 
-      if (isInitialLoad && viewportRef.current) {
+      const viewport = viewportRef.current;
+      let shouldScroll = false;
+      
+      if (isInitialLoad) {
           shouldScroll = true;
       } else if (viewport) {
-          // Check if user is scrolled near the bottom before new messages arrive
           const isAtBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
           if (isAtBottom) {
               shouldScroll = true;
@@ -215,6 +220,7 @@ export default function ChatPage() {
       }
 
       const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+      
       setMessages(newMessages);
 
       if (snapshot.docs.length > 0) {
@@ -222,17 +228,12 @@ export default function ChatPage() {
         setLastVisible(newLastVisible);
       }
 
-      if (snapshot.docs.length < MESSAGE_PAGE_SIZE) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
+      setHasMore(snapshot.docs.length >= MESSAGE_PAGE_SIZE);
       
       setMessagesLoading(false);
       
       if (shouldScroll) {
-          // We use a timeout to allow the DOM to update before we scroll
-          setTimeout(scrollToBottom, 500);
+          scrollToBottom();
       }
 
     }, (error) => {
@@ -391,7 +392,8 @@ export default function ChatPage() {
       const messagesCollection = collection(db, 'messages');
       const docRef = await addDoc(messagesCollection, messageData);
       
-      // The onSnapshot listener will handle scrolling for new messages.
+      // Real-time listener handles new messages, but we explicitly scroll for user-sent messages.
+      scrollToBottom();
 
       const notificationResult = await sendNotification({
         message: messageTextToSend,
@@ -600,12 +602,13 @@ export default function ChatPage() {
              <div className="px-4 py-6 md:px-6">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
                   
+                  {hasMore && !messagesLoading && <div ref={topOfListRef} className="h-1"/>}
                   {messagesLoading && messages.length === 0 && (
                       <div className="flex justify-center items-center p-4">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
                   )}
-                   {hasMore && <div ref={topOfListRef} className="h-1"/>}
+
                   {displayedMessages && displayedMessages.map((message) => (
                     <div key={message.id} id={message.id} className={cn("flex w-full", message.sender === currentUser && "justify-end")}>
                       <div
@@ -807,5 +810,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

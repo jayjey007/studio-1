@@ -133,10 +133,11 @@ export default function ChatPage() {
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
-
+  
   const scrollToBottom = useCallback(() => {
-    // This function will be queued to run after the browser has finished its current rendering cycle.
-    // This ensures that the scroll height is calculated *after* new messages are rendered.
+    // This is a robust way to scroll to the bottom.
+    // The setTimeout with 0ms delay queues this to run after the current rendering cycle,
+    // ensuring the new message is in the DOM.
     setTimeout(() => {
       const viewport = viewportRef.current;
       if (viewport) {
@@ -145,8 +146,51 @@ export default function ChatPage() {
     }, 0);
   }, []);
 
+  // Initial load and real-time listener for NEW messages
+  useEffect(() => {
+    if (!messagesCollectionRef) return;
+    setMessagesLoading(true);
+
+    const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+
+        // On first load, set messages and scroll
+        if (messagesLoading) {
+            setMessages(newMessages);
+            if (newMessages.length > 0) {
+                setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+            }
+            setHasMore(newMessages.length >= MESSAGE_PAGE_SIZE);
+            scrollToBottom();
+        } else {
+             // For subsequent updates, check if we're at the bottom
+            const viewport = viewportRef.current;
+            const isAtBottom = viewport ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200 : true;
+
+            setMessages(newMessages);
+
+            if (isAtBottom) {
+                scrollToBottom();
+            }
+        }
+        
+        setMessagesLoading(false);
+    }, (error) => {
+        console.error("Error with real-time listener:", error);
+        toast({ title: "Real-time Error", description: "Could not listen for new messages.", variant: "destructive" });
+        setMessagesLoading(false);
+    });
+
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messagesCollectionRef]);
+
+
   const loadMoreMessages = useCallback(async () => {
       if (!messagesCollectionRef || !hasMore || messagesLoading || !lastVisible) return;
+      
       setMessagesLoading(true);
 
       const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
@@ -194,43 +238,6 @@ export default function ChatPage() {
       }
     };
   }, [hasMore, messagesLoading, loadMoreMessages]);
-
-
-  // Listener for initial load and real-time updates
-  useEffect(() => {
-    if (!messagesCollectionRef) return;
-    setMessagesLoading(true);
-
-    const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const viewport = viewportRef.current;
-        const isAtBottom = viewport ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200 : true;
-
-        const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-        const isInitialLoad = messages.length === 0;
-
-        setMessages(newMessages);
-
-        if (isInitialLoad || isAtBottom) {
-          scrollToBottom();
-        }
-
-        if (snapshot.docs.length > 0) {
-            setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-        }
-        setHasMore(snapshot.docs.length >= MESSAGE_PAGE_SIZE);
-        setMessagesLoading(false);
-
-    }, (error) => {
-        console.error("Error with real-time listener:", error);
-        toast({ title: "Real-time Error", description: "Could not listen for new messages.", variant: "destructive" });
-        setMessagesLoading(false);
-    });
-
-    return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesCollectionRef, toast, scrollToBottom]);
 
 
   const handleLogout = useCallback(() => {

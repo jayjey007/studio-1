@@ -14,13 +14,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Smile, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical } from "lucide-react";
+import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical } from "lucide-react";
 import { format } from "date-fns";
 import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentNonBlocking } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/app/actions/send-notification";
 
-const EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '❤️', '🎉', '🔥', '🚀', '💯', '🙏', '🤷‍♂️', '🤧', '🥰'];
 const MESSAGE_PAGE_SIZE = 20;
 
 const ALL_USERS = [
@@ -137,7 +136,6 @@ export default function ChatPage() {
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
   const messagesCollectionRef = useMemoFirebase(() => db ? collection(db, 'messages') : null, [db]);
-  const userScrolledUpRef = useRef(false);
   const prevScrollHeightRef = useRef(0);
   const atBottomRef = useRef(true);
 
@@ -310,11 +308,6 @@ export default function ChatPage() {
     };
     checkSupport();
   }, []);
-
-  const handleEmojiClick = (emoji: string) => {
-    setInput(prev => prev + emoji);
-    inputRef.current?.focus();
-  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -659,23 +652,6 @@ export default function ChatPage() {
                 <Paperclip className="h-4 w-4" />
                 <span className="sr-only">Attach File</span>
               </Button>
-            <Popover>
-                <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
-                    <Smile className="h-4 w-4" />
-                    <span className="sr-only">Add Emoji</span>
-                </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-2" side="top" align="start">
-                <div className="grid grid-cols-6 gap-1">
-                    {EMOJIS.map((emoji) => (
-                    <Button key={emoji} variant="ghost" size="icon" className="text-xl" onClick={() => handleEmojiClick(emoji)}>
-                        {emoji}
-                    </Button>
-                    ))}
-                </div>
-                </PopoverContent>
-            </Popover>
             <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Logout" className="h-10 w-10 shrink-0">
               <LogOut className="h-4 w-4" />
             </Button>
@@ -725,3 +701,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

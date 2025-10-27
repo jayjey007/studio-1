@@ -5,7 +5,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user of the CipherChat application.",
+      "description": "Represents a user of the news application.",
       "properties": {
         "id": {
           "type": "string",
@@ -41,7 +41,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ChatMessage",
       "type": "object",
-      "description": "Represents a chat message within CipherChat.",
+      "description": "Represents a chat message within news.",
       "properties": {
         "id": {
           "type": "string",

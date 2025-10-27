@@ -4,8 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
-  title: 'CipherChat',
-  description: 'A personal chat application with message scrambling',
+  title: 'news',
+  description: 'A personal news application',
   manifest: '/manifest.json',
 };
 
@@ -20,10 +20,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet" />
-        <meta name="application-name" content="CipherChat" />
+        <meta name="application-name" content="news" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="CipherChat" />
+        <meta name="apple-mobile-web-app-title" content="news" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#000000" />

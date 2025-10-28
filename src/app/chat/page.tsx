@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus } from "lucide-react";
+import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText } from "lucide-react";
 import { format } from "date-fns";
 import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -525,9 +525,6 @@ export default function ChatPage() {
     <>
       <div className="flex h-screen w-full flex-col bg-background">
       <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Logout">
-              <LogOut className="h-5 w-5" />
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -552,6 +549,12 @@ export default function ChatPage() {
                   <Link href="/bucket-list">
                     <ListPlus className="mr-2 h-4 w-4" />
                     <span>Bucket List</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/letter">
+                    <BookText className="mr-2 h-4 w-4" />
+                    <span>Shared Letter</span>
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -728,3 +731,5 @@ export default function ChatPage() {
     </>
   );
 }
+
+    

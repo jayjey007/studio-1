@@ -164,6 +164,37 @@
         "authorUsername",
         "createdAt"
       ]
+    },
+    "LetterEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LetterEntry",
+      "type": "object",
+      "description": "Represents a paragraph entry in the shared letter.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the letter entry."
+        },
+        "text": {
+          "type": "string",
+          "description": "The content of the letter entry."
+        },
+        "authorUsername": {
+          "type": "string",
+          "description": "The username of the user who added the entry."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the entry was created."
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "authorUsername",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -284,8 +315,39 @@
             }
           ]
         }
+      },
+      {
+        "path": "/letter/{entryId}",
+        "definition": {
+          "entityName": "LetterEntry",
+          "schema": {
+            "$ref": "#/backend/entities/LetterEntry"
+          },
+          "description": "Stores shared letter entries. Data is public.",
+          "params": [
+            {
+              "name": "entryId",
+              "description": "The unique identifier for the letter entry."
+            }
+          ],
+          "queries": [
+            {
+              "description": "Fetches all letter entries, ordered by creation date.",
+              "collection": "letter",
+              "clauses": [
+                {
+                  "field": "createdAt",
+                  "operator": "asc",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is simplified for a two-user prototype where strict security is not a requirement. All data in the 'users', 'messages', 'fcmTokens', and 'bucketList' collections are public to allow for easy reading and writing without complex authentication checks. This model is suitable for rapid prototyping but should be secured before moving to a production environment with more users."
+    "reasoning": "The Firestore structure is simplified for a two-user prototype where strict security is not a requirement. All data in the 'users', 'messages', 'fcmTokens', 'bucketList', and 'letter' collections are public to allow for easy reading and writing without complex authentication checks. This model is suitable for rapid prototyping but should be secured before moving to a production environment with more users."
   }
 }
+
+    

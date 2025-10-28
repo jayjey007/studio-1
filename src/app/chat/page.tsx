@@ -554,10 +554,6 @@ export default function ChatPage() {
                     <span>Bucket List</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => toast({title: "This button is redundant", description: "You can use the dedicated logout button now."})}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Logout (in menu)</span>
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

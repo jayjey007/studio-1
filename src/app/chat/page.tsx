@@ -128,6 +128,7 @@ export default function ChatPage() {
   const [showNotificationButton, setShowNotificationButton] = useState(false);
 
   const isFilePickerOpen = useRef(false);
+  const isPermissionPromptOpen = useRef(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -284,7 +285,7 @@ export default function ChatPage() {
   
   useEffect(() => {
     const handleWindowBlur = () => {
-      if (isFilePickerOpen.current) {
+      if (isFilePickerOpen.current || isPermissionPromptOpen.current) {
         return;
       }
       handleLogout();
@@ -293,6 +294,9 @@ export default function ChatPage() {
     const handleWindowFocus = () => {
       if (isFilePickerOpen.current) {
         isFilePickerOpen.current = false;
+      }
+      if (isPermissionPromptOpen.current) {
+        isPermissionPromptOpen.current = false;
       }
     };
 
@@ -526,7 +530,10 @@ export default function ChatPage() {
 
   const startRecording = async () => {
     try {
+        isPermissionPromptOpen.current = true;
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        isPermissionPromptOpen.current = false;
+
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioChunksRef.current = [];
 
@@ -546,6 +553,7 @@ export default function ChatPage() {
         mediaRecorderRef.current.start();
         setIsRecording(true);
     } catch (err) {
+        isPermissionPromptOpen.current = false;
         console.error("Error accessing microphone:", err);
         toast({
             title: "Microphone Error",
@@ -802,5 +810,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-    

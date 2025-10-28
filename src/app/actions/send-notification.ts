@@ -2,7 +2,7 @@
 'use server';
 
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
+import { getMessaging, Message, MulticastMessage } from 'firebase-admin/messaging';
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { firebaseConfig } from '@/firebase/config';
 
@@ -175,21 +175,13 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
 
         const funFact = getRandomFunFact();
 
-        const payload: MulticastMessage = {
-            tokens: [fcmToken],
-            webpush: {
+        const payload: Message = {
+            token: fcmToken,            
                 notification: {
                     title: 'Fun Fact',
                     body: funFact,
-                },
-                fcmOptions: {
-                    link: `/chat#${messageId}`,
-                },
-            },           
-            apns: {
-                headers: {
-                    'apns-priority': '10', 
-                },
+                },                           
+            apns: {               
                 payload: {
                     aps: {                       
                         sound: 'default',
@@ -200,7 +192,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
             },
         };  
     
-        await messaging.sendEachForMulticast(payload);
+        await messaging.send(payload);
         console.log(`Successfully sent notification to ${recipient.username}`);
         
         // Update the last notification timestamp

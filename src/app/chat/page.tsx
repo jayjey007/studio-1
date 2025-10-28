@@ -14,11 +14,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star } from "lucide-react";
+import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart } from "lucide-react";
 import { format } from "date-fns";
 import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/app/actions/send-notification";
+import Link from "next/link";
 
 const MESSAGE_PAGE_SIZE = 20;
 
@@ -27,7 +28,7 @@ const ALL_USERS = [
     { username: 'Cool', uid: 'N2911Sj2g8cT03s5v31s1p9V8s22' }
 ];
 
-interface Message {
+export interface Message {
   id: string;
   scrambledText: string;
   sender: string; // username
@@ -541,6 +542,12 @@ export default function ChatPage() {
                     <span>Enable Notifications</span>
                   </DropdownMenuItem>
                 )}
+                 <DropdownMenuItem asChild>
+                    <Link href="/favorites">
+                      <Heart className="mr-2 h-4 w-4" />
+                      <span>Favorites</span>
+                    </Link>
+                  </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => toast({title: "This button is redundant", description: "You can use the dedicated logout button now."})}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Logout (in menu)</span>

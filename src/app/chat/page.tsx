@@ -534,7 +534,13 @@ export default function ChatPage() {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         isPermissionPromptOpen.current = false;
 
-        mediaRecorderRef.current = new MediaRecorder(stream);
+        const options = { mimeType: 'audio/mp4' };
+        const isSupported = MediaRecorder.isTypeSupported(options.mimeType);
+        
+        mediaRecorderRef.current = new MediaRecorder(stream, isSupported ? options : undefined);
+        const mimeType = mediaRecorderRef.current.mimeType;
+        const fileExtension = mimeType.split('/')[1].split(';')[0];
+
         audioChunksRef.current = [];
 
         mediaRecorderRef.current.ondataavailable = event => {
@@ -542,9 +548,9 @@ export default function ChatPage() {
         };
 
         mediaRecorderRef.current.onstop = () => {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
             const audioUrl = URL.createObjectURL(audioBlob);
-            const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+            const audioFile = new File([audioBlob], `voice-note-${Date.now()}.${fileExtension}`, { type: mimeType });
             setMediaFile(audioFile);
             setMediaPreview(audioUrl);
             setMediaType('audio');

@@ -195,6 +195,45 @@
         "authorUsername",
         "createdAt"
       ]
+    },
+    "VideoCall": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "VideoCall",
+      "type": "object",
+      "description": "Represents a video call session between two users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the video call."
+        },
+        "initiatorUid": {
+          "type": "string",
+          "description": "The UID of the user who initiated the call."
+        },
+        "recipientUid": {
+          "type": "string",
+          "description": "The UID of the user who is receiving the call."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the call.",
+          "enum": ["ringing", "connected", "rejected", "ended"]
+        },
+        "offer": {
+          "type": "object",
+          "description": "The SDP offer from the initiator."
+        },
+        "answer": {
+          "type": "object",
+          "description": "The SDP answer from the recipient."
+        }
+      },
+      "required": [
+        "id",
+        "initiatorUid",
+        "recipientUid",
+        "status"
+      ]
     }
   },
   "auth": {
@@ -354,8 +393,70 @@
             }
           ]
         }
+      },
+       {
+        "path": "/videoCalls/{callId}",
+        "definition": {
+          "entityName": "VideoCall",
+          "schema": {
+            "$ref": "#/backend/entities/VideoCall"
+          },
+          "description": "Manages video call sessions. Only involved users can read/write.",
+          "params": [
+            {
+              "name": "callId",
+              "description": "The unique identifier for the video call."
+            }
+          ],
+          "operations": {
+            "read": {
+              "rule": "resource.data.initiatorUid == request.auth.uid || resource.data.recipientUid == request.auth.uid",
+              "description": "Only the initiator or recipient can read the call document."
+            },
+            "write": {
+              "rule": "request.auth.uid == request.resource.data.initiatorUid || request.auth.uid == request.resource.data.recipientUid",
+              "description": "Only the initiator or recipient can write to the call document."
+            }
+          }
+        }
+      },
+      {
+        "path": "/videoCalls/{callId}/initiatorCandidates/{candidateId}",
+        "definition": {
+          "entityName": "IceCandidate",
+          "description": "Stores ICE candidates from the initiator. Only the recipient can read.",
+          "operations": {
+            "read": {
+              "rule": "get(/databases/$(database)/documents/videoCalls/$(callId)).data.recipientUid == request.auth.uid",
+              "description": "Only the recipient can read initiator's candidates."
+            },
+            "create": {
+              "rule": "get(/databases/$(database)/documents/videoCalls/$(callId)).data.initiatorUid == request.auth.uid",
+              "description": "Only the initiator can create their candidates."
+            }
+          }
+        }
+      },
+      {
+        "path": "/videoCalls/{callId}/recipientCandidates/{candidateId}",
+        "definition": {
+          "entityName": "IceCandidate",
+          "description": "Stores ICE candidates from the recipient. Only the initiator can read.",
+          "operations": {
+            "read": {
+              "rule": "get(/databases/$(database)/documents/videoCalls/$(callId)).data.initiatorUid == request.auth.uid",
+              "description": "Only the initiator can read recipient's candidates."
+            },
+            "create": {
+              "rule": "get(/databases/$(database)/documents/videoCalls/$(callId)).data.recipientUid == request.auth.uid",
+              "description": "Only the recipient can create their candidates."
+            }
+          }
+        }
       }
     ],
-    "reasoning": "The Firestore structure is simplified for a two-user prototype where strict security is not a requirement. All data in the 'users', 'messages', 'fcmTokens', 'bucketList', and 'letter' collections are public to allow for easy reading and writing without complex authentication checks. This model is suitable for rapid prototyping but should be secured before moving to a production environment with more users."
+    "reasoning": "The Firestore structure is simplified for a two-user prototype where strict security is not a requirement. All data in the 'users', 'messages', 'fcmTokens', 'bucketList', and 'letter' collections are public to allow for easy reading and writing without complex authentication checks. This model is suitable for rapid prototyping but should be secured before moving to a production environment with more users. The 'videoCalls' collection has more restrictive rules to ensure only participants can access call data."
   }
 }
+
+    

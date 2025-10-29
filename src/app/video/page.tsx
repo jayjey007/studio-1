@@ -7,7 +7,7 @@ import { useFirebase } from '@/firebase/provider';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { VideoChat } from '@/components/VideoChat';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const ALL_USERS = [
@@ -19,10 +19,35 @@ const CALL_ID = "main_call"; // Using a static call ID for this 1-on-1 app
 
 export default function VideoPage() {
     const router = useRouter();
-    const { firestore, user: currentUser } = useFirebase();
+    const { firestore, auth } = useFirebase();
     const { toast } = useToast();
     const [callDocExists, setCallDocExists] = useState(false);
     const [isCheckingDoc, setIsCheckingDoc] = useState(true);
+    const [currentUser, setCurrentUser] = useState<any | null>(null);
+
+    useEffect(() => {
+        // Safari on iOS sometimes has issues with auth state persistence on page loads.
+        // We check sessionStorage first for a quicker and more reliable auth check on mobile.
+        const userInSession = sessionStorage.getItem('currentUser');
+        const userObject = userInSession ? ALL_USERS.find(u => u.username === userInSession) : null;
+
+        if (!userObject) {
+          router.replace('/');
+          return;
+        }
+
+        if (auth.currentUser) {
+            setCurrentUser(auth.currentUser);
+        } else {
+            // Create a mock user object if the full auth object isn't available yet
+            // This is enough for the component to proceed while auth state finalizes
+             setCurrentUser({
+                uid: userObject.uid,
+                displayName: userObject.username
+            });
+        }
+    }, [router, auth]);
+
 
     const callDocRef = firestore ? doc(firestore, 'videoCalls', CALL_ID) : null;
 
@@ -52,7 +77,7 @@ export default function VideoPage() {
         const checkCallDoc = async () => {
             if (!callDocRef) return;
             try {
-                const docSnap = await getDoc(callDoc_ref);
+                const docSnap = await getDoc(callDocRef);
                 setCallDocExists(docSnap.exists());
             } catch (error) {
                 console.error("Error checking call document:", error);
@@ -64,12 +89,9 @@ export default function VideoPage() {
     }, [callDocRef]);
 
     if (!currentUser) {
-        // You might want to redirect to login if the user is not authenticated
-        // For now, just showing a message.
         return (
-            <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground p-4">
-                <p>Please log in to use the video call feature.</p>
-                <Button onClick={() => router.push('/')} className="mt-4">Go to Login</Button>
+            <div className="flex h-screen w-full items-center justify-center bg-background">
+                <Loader2 className="h-10 w-10 animate-spin" />
             </div>
         );
     }
@@ -96,8 +118,3 @@ export default function VideoPage() {
         </div>
     );
 }
-
-// Minimal stub for getDoc until it's properly used
-const getDoc_ref = null as any;
-
-    

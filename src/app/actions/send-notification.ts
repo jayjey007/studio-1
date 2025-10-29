@@ -38,8 +38,8 @@ interface NotificationResult {
 }
 
 const ALL_USERS = [
-    { username: 'Crazy', uid: 'QYTCCLfLg1gxdLLQy34y0T2Pz3g2', phoneNumber: '15551234567' },
-    { username: 'Cool', uid: 'N2911Sj2g8cT03s5v31s1p9V8s22', phoneNumber: '15557654321' }
+    { username: 'Crazy', uid: 'QYTCCLfLg1gxdLLQy34y0T2Pz3g2', phoneNumber: '+12065105393' },
+    { username: 'Cool', uid: 'N2911Sj2g8cT03s5v31s1p9V8s22', phoneNumber: '+447868232024' }
 ];
 
 const FUN_FACTS = [

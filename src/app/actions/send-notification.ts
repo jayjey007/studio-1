@@ -6,6 +6,9 @@ import { getMessaging, Message, MulticastMessage } from 'firebase-admin/messagin
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { firebaseConfig } from '@/firebase/config';
 import { Vonage } from '@vonage/server-sdk';
+import { config } from 'dotenv';
+
+config();
 
 // This function should be defined within the file or imported from a non-'use server' module.
 // For simplicity, we define it here to avoid cross-module issues with 'use server'.

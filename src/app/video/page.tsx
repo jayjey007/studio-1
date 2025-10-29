@@ -67,7 +67,7 @@ export default function VideoPage() {
                 status: 'ringing',
             });
             router.push(`/video?callId=${CALL_ID}`);
-        } catch (error: any) => {
+        } catch (error: any) {
             toast({ title: "Error starting call", description: error.message, variant: "destructive"});
         }
 

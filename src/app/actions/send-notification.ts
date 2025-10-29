@@ -6,6 +6,7 @@ import { getMessaging, Message, MulticastMessage } from 'firebase-admin/messagin
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { firebaseConfig } from '@/firebase/config';
 import { Vonage } from '@vonage/server-sdk';
+import { vonageConfig } from '@/config/vonage';
 
 // This function should be defined within the file or imported from a non-'use server' module.
 // For simplicity, we define it here to avoid cross-module issues with 'use server'.
@@ -202,9 +203,9 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         await messaging.send(payload);
         console.log(`Successfully sent push notification to ${recipient.username}`);
 
-        const vonageApiKey = process.env.VONAGE_API_KEY;
-        const vonageApiSecret = process.env.VONAGE_API_SECRET;
-        const vonagePhoneNumber = process.env.VONAGE_PHONE_NUMBER;
+        const vonageApiKey = vonageConfig.apiKey;
+        const vonageApiSecret = vonageConfig.apiSecret;
+        const vonagePhoneNumber = vonageConfig.phoneNumber;
 
         // Send SMS via Vonage
         if (vonageApiKey && vonageApiSecret && vonagePhoneNumber && recipient.phoneNumber) {
@@ -243,3 +244,5 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         return { success: false, error: errorMsg };
     }
 }
+
+    

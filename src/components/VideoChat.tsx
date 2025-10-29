@@ -32,6 +32,7 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
 
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const isPermissionPromptOpen = useRef(false);
 
     const { toast } = useToast();
     const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'in-call' | 'error'>('idle');
@@ -40,7 +41,9 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
     useEffect(() => {
         const getCameraPermission = async () => {
             try {
+                isPermissionPromptOpen.current = true;
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                isPermissionPromptOpen.current = false;
                 localStream.current = stream;
                 if (localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
@@ -49,6 +52,7 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
             } catch (error) {
                 console.error('Error accessing camera:', error);
                 setHasCameraPermission(false);
+                isPermissionPromptOpen.current = false;
                 toast({
                     variant: 'destructive',
                     title: 'Camera Access Denied',
@@ -202,11 +206,11 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
     return (
         <div className="w-full max-w-4xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-muted rounded-lg overflow-hidden aspect-video">
+                <div className="bg-muted rounded-lg overflow-hidden aspect-video relative">
                     <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                     <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">You</div>
                 </div>
-                <div className="bg-muted rounded-lg overflow-hidden aspect-video">
+                <div className="bg-muted rounded-lg overflow-hidden aspect-video relative">
                     <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
                     <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">Remote</div>
                 </div>
@@ -244,5 +248,3 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
         </div>
     );
 }
-
-    

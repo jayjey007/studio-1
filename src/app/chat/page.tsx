@@ -535,11 +535,11 @@ export default function ChatPage() {
         isPermissionPromptOpen.current = false;
 
         const options = { mimeType: 'audio/mp4' };
-        const isSupported = MediaRecorder.isTypeSupported(options.mimeType);
+        const isSupportedFormat = MediaRecorder.isTypeSupported(options.mimeType);
         
-        mediaRecorderRef.current = new MediaRecorder(stream, isSupported ? options : undefined);
+        mediaRecorderRef.current = new MediaRecorder(stream, isSupportedFormat ? options : undefined);
         const mimeType = mediaRecorderRef.current.mimeType;
-        const fileExtension = mimeType.split('/')[1].split(';')[0];
+        const fileExtension = isSupportedFormat ? 'mp4' : mimeType.split('/')[1].split(';')[0];
 
         audioChunksRef.current = [];
 
@@ -615,7 +615,7 @@ export default function ChatPage() {
                   </Link>
                 </DropdownMenuItem>
                  <DropdownMenuItem asChild>
-                  <Link href="/video">
+                  <Link href="/video" onClick={() => isPermissionPromptOpen.current = true}>
                     <Video className="mr-2 h-4 w-4" />
                     <span>Video Call</span>
                   </Link>

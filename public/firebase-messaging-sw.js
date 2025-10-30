@@ -26,11 +26,11 @@ messaging.onBackgroundMessage((payload) => {
   );
   
   // Customize the notification here
-  const notificationTitle = payload.data.title;
+  const notificationTitle = payload.notification.title;
   const notificationOptions = {
-    body: payload.data.body,
+    body: payload.notification.body,
     icon: '/firebase-logo.png', // Optional: you can add an icon
   };
-
+  
   self.registration.showNotification(notificationTitle, notificationOptions);
 });

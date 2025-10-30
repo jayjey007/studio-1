@@ -239,22 +239,21 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         if (fcmToken) {
             const { fact, newUsedIndices } = await getFunFact(firestore, recipient.uid);
             const payload: Message = {
-                token: fcmToken,
-                data: {
+                token: fcmToken,            
+                notification: {
                     title: 'Fun Fact',
                     body: fact,
-                    messageId: messageId,
-                },
-                apns: {
+                },                           
+                apns: {               
                     payload: {
-                        aps: {
-                            'content-available': 1,
+                        aps: {                       
                             sound: 'default',
                             badge: 1,
                         },
+                        'messageId': messageId,
                     },
                 },
-            };
+            }; 
             await messaging.send(payload);
             console.log(`Successfully sent push notification to ${recipient.username}`);
             await userDocRef.set({ 

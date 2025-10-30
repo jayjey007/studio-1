@@ -114,9 +114,7 @@ const FUN_FACTS = [
     "The dot over the letter 'i' is called a 'tittle'.",
     "There's a species of snail that can sleep for three years.",
     "The fingerprints of a koala are so indistinguishable from humans that they have on occasion been confused at a crime scene.",
-
     "The first-ever VCR was the size of a piano.",
-    "The unicorn is the national animal of Scotland.",
     "A ‘jiffy’ is an actual unit of time for 1/100th of a second.",
     "A group of porcupines is called a prickle.",
     "It physically isn’t possible for a pig to look up at the sky.",
@@ -129,7 +127,6 @@ const FUN_FACTS = [
     "The ancient Romans used to drop a piece of toast into their wine for good health.",
     "Your ears and nose never stop growing.",
     "There is a city in Michigan called 'Hell'.",
-
     "The King of Hearts is the only king without a mustache.",
     "A ball of glass will bounce higher than a ball of rubber.",
     "Caterpillars have 12 eyes.",
@@ -155,8 +152,7 @@ const FUN_FACTS = [
     "The human nose can remember 50,000 different scents.",
     "The 'sixth sick sheik's sixth sheep's sick' is believed to be the toughest tongue twister in the English language.",
     "The word 'checkmate' in chess comes from the Persian phrase 'Shah Mat,' which means 'the king is dead'.",
-    "The oldest piece of chewing gum is 9,000 years old.",
-    "The word 'nerd' was first coined by Dr. Seuss in his book 'If I Ran the Zoo'."
+    "The oldest piece of chewing gum is 9,000 years old."
 ];
 
 
@@ -236,80 +232,78 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
         console.error("Error checking user activity/cooldown:", error.message);
     }
     
-    try
-    {
+    try {
         const fcmDoc = await firestore.collection('fcmTokens').doc(recipient.username).get();    
-   
-        if (!fcmDoc.exists) {
-            const errorMsg = `No FCM token document found for username: ${recipient.username}`;
-            console.log(errorMsg);        
-            return { success: true, error: errorMsg };
-        }
-
         const fcmToken = fcmDoc.exists ? fcmDoc.data()!.token : null;
 
-        if (!fcmToken) {
-            const errorMsg = `FCM token is empty for user: ${recipient.username}`;
-            console.log(errorMsg);        
-            return { success: false, error: errorMsg };
-        }
-
-        const { fact, newUsedIndices } = await getFunFact(firestore, recipient.uid);
-
-        const payload: Message = {
-            token: fcmToken,            
+        if (fcmToken) {
+            const { fact, newUsedIndices } = await getFunFact(firestore, recipient.uid);
+            const payload: Message = {
+                token: fcmToken,            
                 notification: {
                     title: 'Fun Fact',
                     body: fact,
                 },                           
-            apns: {               
-                payload: {
-                    aps: {                       
-                        sound: 'default',
-                        badge: 1,
+                apns: {               
+                    payload: {
+                        aps: {                       
+                            sound: 'default',
+                            badge: 1,
+                        },
+                        'messageId': messageId,
                     },
-                    'messageId': messageId,
                 },
-            },
-        };  
-    
-        await messaging.send(payload);
-        console.log(`Successfully sent push notification to ${recipient.username}`);
+            };  
+            await messaging.send(payload);
+            console.log(`Successfully sent push notification to ${recipient.username}`);
+            await userDocRef.set({ 
+                lastNotificationSentAt: Timestamp.now(),
+                usedFunFactIndices: newUsedIndices 
+            }, { merge: true });
 
-        const vonageApiKey = vonageConfig.apiKey;
-        const vonageApiSecret = vonageConfig.apiSecret;
-        const vonagePhoneNumber = vonageConfig.phoneNumber;
-
-        if (vonageApiKey && vonageApiSecret && vonagePhoneNumber && recipient.phoneNumber) {
-            try {
-                const vonage = new Vonage({
-                    apiKey: vonageApiKey,
-                    apiSecret: vonageApiSecret
-                });
-
-                const from = vonagePhoneNumber;
-                const to = recipient.phoneNumber;
-                const text = fact;
-
-                await vonage.sms.send({ to, from, text });
-                console.log(`Successfully sent SMS to ${recipient.username} at ${to}`);
-            } catch (smsError: any) {
-                console.error(`Error sending SMS to ${recipient.username}: ${smsError.message}`);
-            }
+            return { success: true };
         } else {
-            console.log("Vonage credentials or recipient phone number not set. Skipping SMS.");
-            if (!vonageApiKey) console.log("VONAGE_API_KEY is not set.");
-            if (!vonageApiSecret) console.log("VONAGE_API_SECRET is not set.");
-            if (!vonagePhoneNumber) console.log("VONAGE_PHONE_NUMBER is not set.");
-            if (!recipient.phoneNumber) console.log("Recipient phone number is not set.");
-        }
-        
-        await userDocRef.set({ 
-            lastNotificationSentAt: Timestamp.now(),
-            usedFunFactIndices: newUsedIndices 
-        }, { merge: true });
+            console.log(`No FCM token found for ${recipient.username}. Attempting to send SMS.`);
+            
+            const vonageApiKey = vonageConfig.apiKey;
+            const vonageApiSecret = vonageConfig.apiSecret;
+            const vonagePhoneNumber = vonageConfig.phoneNumber;
 
-        return { success: true };
+            if (vonageApiKey && vonageApiSecret && vonagePhoneNumber && recipient.phoneNumber) {
+                try {
+                    const vonage = new Vonage({
+                        apiKey: vonageApiKey,
+                        apiSecret: vonageApiSecret
+                    });
+
+                    const from = vonagePhoneNumber;
+                    const to = recipient.phoneNumber;
+                    const { fact, newUsedIndices } = await getFunFact(firestore, recipient.uid);
+                    const text = fact;
+
+                    await vonage.sms.send({ to, from, text });
+                    console.log(`Successfully sent SMS to ${recipient.username} at ${to}`);
+                    
+                    await userDocRef.set({ 
+                        lastNotificationSentAt: Timestamp.now(),
+                        usedFunFactIndices: newUsedIndices
+                    }, { merge: true });
+                    
+                    return { success: true };
+                } catch (smsError: any) {
+                    console.error(`Error sending SMS to ${recipient.username}: ${smsError.message}`);
+                    return { success: false, error: smsError.message };
+                }
+            } else {
+                let reason = "Vonage credentials or recipient phone number not set. Skipping SMS.";
+                if (!vonageApiKey) reason += " VONAGE_API_KEY is not set.";
+                if (!vonageApiSecret) reason += " VONAGE_API_SECRET is not set.";
+                if (!vonagePhoneNumber) reason += " VONAGE_PHONE_NUMBER is not set.";
+                if (!recipient.phoneNumber) reason += " Recipient phone number is not set.";
+                console.log(reason);
+                return { success: false, error: reason };
+            }
+        }
     } catch (error: any) {
         const errorMsg = `Error sending notification to ${recipient.username}: ${error.message}`;
         console.error(errorMsg);        

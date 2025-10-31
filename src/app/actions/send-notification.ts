@@ -275,11 +275,7 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
                 },
                 apns: {
                     payload: {
-                        aps: {
-                            alert: {
-                                title: 'Fun Fact',
-                                body: fact,
-                            },
+                        aps: {                         
                             sound: 'default',
                             badge: 1,
                         },

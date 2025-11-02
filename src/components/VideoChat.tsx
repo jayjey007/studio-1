@@ -38,7 +38,6 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
 
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
-    const isPermissionPromptOpen = useRef(false);
 
     const { toast } = useToast();
     const [callStatus, setCallStatus] = useState<'idle' | 'joining' | 'in-call' | 'error'>('idle');
@@ -52,37 +51,51 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
     const hangUp = useCallback(async (isLocalHangup = true) => {
-        pc.current?.close();
-        localStream.current?.getTracks().forEach(track => track.stop());
+        if (pc.current) {
+            pc.current.close();
+            pc.current = null;
+        }
+
+        if (localStream.current) {
+            localStream.current.getTracks().forEach(track => track.stop());
+            localStream.current = null;
+        }
+
+        if (remoteStream.current) {
+            remoteStream.current.getTracks().forEach(track => track.stop());
+            remoteStream.current = null;
+        }
+        
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+        if (localVideoRef.current) localVideoRef.current.srcObject = null;
+
 
         if (firestore && isLocalHangup) {
             const callDocRef = doc(firestore, 'videoCalls', callId);
             if ((await getDoc(callDocRef)).exists()) {
-                const offerCandidatesQuery = await getDocs(collection(callDocRef, 'offerCandidates'));
-                offerCandidatesQuery.forEach(async (candidateDoc) => await deleteDoc(candidateDoc.ref));
+                const initiatorCandidatesQuery = await getDocs(collection(callDocRef, 'initiatorCandidates'));
+                initiatorCandidatesQuery.forEach(async (candidateDoc) => await deleteDoc(candidateDoc.ref));
                 
-                const answerCandidatesQuery = await getDocs(collection(callDocRef, 'answerCandidates'));
-                answerCandidatesQuery.forEach(async (candidateDoc) => await deleteDoc(candidateDoc.ref));
+                const recipientCandidatesQuery = await getDocs(collection(callDocRef, 'recipientCandidates'));
+                recipientCandidatesQuery.forEach(async (candidateDoc) => await deleteDoc(candidateDoc.ref));
                 
                 await deleteDoc(callDocRef);
             }
         }
-
-        pc.current = null;
-        remoteStream.current = null;
-        if(remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         
         setCallStatus('idle');
         setHasCameraPermission(null);
-        window.location.reload();
+        // A reload is a bit heavy, but it's the most reliable way to reset all states
+        // after a complex WebRTC session.
+        window.location.reload(); 
     }, [firestore, callId]);
 
+
+    // Step 1: Get media stream
     useEffect(() => {
         const getCameraPermission = async () => {
             try {
-                isPermissionPromptOpen.current = true;
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                isPermissionPromptOpen.current = false;
                 localStream.current = stream;
                 if (localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
@@ -91,7 +104,6 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
             } catch (error) {
                 console.error('Error accessing camera:', error);
                 setHasCameraPermission(false);
-                isPermissionPromptOpen.current = false;
                 toast({
                     variant: 'destructive',
                     title: 'Camera Access Denied',
@@ -105,7 +117,8 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
             localStream.current?.getTracks().forEach(track => track.stop());
         }
     }, [toast]);
-    
+
+
     const joinCall = async () => {
         if (!firestore || !currentUser || !localStream.current) {
             toast({ title: 'Error', description: 'Cannot start call. Resources not ready.', variant: 'destructive'});
@@ -114,12 +127,15 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
 
         setCallStatus('joining');
 
+        // Step 2: Create Peer Connection
         pc.current = new RTCPeerConnection(servers);
 
+        // Add local tracks to the connection
         localStream.current.getTracks().forEach(track => {
             pc.current!.addTrack(track, localStream.current!);
         });
 
+        // Step 6: Display Remote Stream
         remoteStream.current = new MediaStream();
         pc.current.ontrack = event => {
             event.streams[0].getTracks().forEach(track => {
@@ -132,25 +148,25 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
         }
         
         const callDocRef = doc(firestore, 'videoCalls', callId);
-        const offerCandidatesRef = collection(callDocRef, 'offerCandidates');
-        const answerCandidatesRef = collection(callDocRef, 'answerCandidates');
+        const initiatorCandidatesRef = collection(callDocRef, 'initiatorCandidates');
+        const recipientCandidatesRef = collection(callDocRef, 'recipientCandidates');
 
+        // Step 5: Collect and Exchange ICE Candidates
         pc.current.onicecandidate = async event => {
             if (event.candidate) {
+                // The user who created the call document is the initiator
                 const callDoc = await getDoc(callDocRef);
-                // If the doc exists and has an answer, we are the initiator.
-                // If it exists but has no answer, we are the answerer.
-                const isInitiator = callDoc.exists() && callDoc.data().answer;
-                const isAnswerer = callDoc.exists() && !callDoc.data().answer;
+                const isInitiator = callDoc.exists() && callDoc.data().initiatorUid === currentUser.uid;
 
-                if (isInitiator || !callDoc.exists()) {
-                    await addDoc(offerCandidatesRef, event.candidate.toJSON());
-                } else if (isAnswerer) {
-                    await addDoc(answerCandidatesRef, event.candidate.toJSON());
+                if (isInitiator) {
+                    await addDoc(initiatorCandidatesRef, event.candidate.toJSON());
+                } else {
+                    await addDoc(recipientCandidatesRef, event.candidate.toJSON());
                 }
             }
         };
-
+        
+        // Listen for remote hang up
         onSnapshot(callDocRef, (snapshot) => {
             if (!snapshot.exists()) {
                 console.log("Call document deleted, hanging up.");
@@ -158,18 +174,21 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
             }
         });
 
+        // Step 4: Exchange Signaling Data
         const callDoc = await getDoc(callDocRef);
 
-        if (callDoc.exists()) { // Join existing call
+        if (callDoc.exists()) { // This user is the RECIPIENT/CALLEE
+            // Set remote description from the offer
             await pc.current.setRemoteDescription(new RTCSessionDescription(callDoc.data().offer));
             
+            // Create answer, set local description, and update Firestore
             const answerDescription = await pc.current.createAnswer();
             await pc.current.setLocalDescription(answerDescription);
-
             const answer = { type: answerDescription.type, sdp: answerDescription.sdp };
             await updateDoc(callDocRef, { answer, status: 'connected' });
 
-            onSnapshot(offerCandidatesRef, (snapshot) => {
+            // Listen for ICE candidates from the initiator
+            onSnapshot(initiatorCandidatesRef, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === 'added') {
                         pc.current?.addIceCandidate(new RTCIceCandidate(change.doc.data()));
@@ -178,25 +197,27 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
             });
             setCallStatus('in-call');
 
-        } else { // Create new call
+        } else { // This user is the INITIATOR/CALLER
+            // Create offer, set local description, and create Firestore document
             const offerDescription = await pc.current.createOffer();
             await pc.current.setLocalDescription(offerDescription);
-
             const offer = { sdp: offerDescription.sdp, type: offerDescription.type };
             const recipient = ALL_USERS.find(u => u.uid !== currentUser.uid);
 
             await setDoc(callDocRef, { offer, initiatorUid: currentUser.uid, recipientUid: recipient!.uid, status: 'ringing' });
 
+            // Listen for the answer from the recipient
             onSnapshot(callDocRef, (snapshot) => {
                 const data = snapshot.data();
-                if (data?.answer && !pc.current?.currentRemoteDescription) {
+                if (data?.answer && pc.current && !pc.current.currentRemoteDescription) {
                     const answerDescription = new RTCSessionDescription(data.answer);
-                    pc.current?.setRemoteDescription(answerDescription);
+                    pc.current.setRemoteDescription(answerDescription);
                     setCallStatus('in-call');
                 }
             });
 
-            onSnapshot(answerCandidatesRef, (snapshot) => {
+            // Listen for ICE candidates from the recipient
+            onSnapshot(recipientCandidatesRef, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === 'added') {
                         pc.current?.addIceCandidate(new RTCIceCandidate(change.doc.data()));
@@ -295,7 +316,7 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
                 style={{
                     top: position.y,
                     left: position.x,
-                    display: hasCameraPermission ? 'block' : 'none'
+                    display: callStatus !== 'idle' ? 'block' : 'none'
                 }}
                 onMouseDown={handleMouseDown}
                 onTouchStart={handleTouchStart}
@@ -317,8 +338,8 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
             
             <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 z-10">
                 {callStatus === 'idle' && hasCameraPermission && (
-                    <Button onClick={joinCall} className="bg-blue-500 hover:bg-blue-600 text-white rounded-full h-16 w-16 p-0 border-0">
-                        Join
+                    <Button onClick={joinCall} className="bg-green-500 hover:bg-green-600 text-white rounded-full h-16 w-16 p-0 border-0">
+                       <Phone className="h-7 w-7" />
                     </Button>
                 )}
 
@@ -326,14 +347,14 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
                 
                 {callStatus === 'in-call' && (
                     <>
-                         <Button onClick={toggleAudio} variant="outline" className="bg-black/30 hover:bg-black/50 border-0 text-white rounded-full h-12 w-12 p-0">
+                         <Button onClick={toggleAudio} variant="outline" className="bg-white/20 hover:bg-white/30 backdrop-blur-sm border-0 text-white rounded-full h-12 w-12 p-0">
                             {isAudioEnabled ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
                         </Button>
-                        <Button onClick={toggleVideo} variant="outline" className="bg-black/30 hover:bg-black/50 border-0 text-white rounded-full h-12 w-12 p-0">
-                            {isVideoEnabled ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
-                        </Button>
-                        <Button onClick={() => hangUp(true)} variant="destructive" className="rounded-full h-16 w-16 p-0">
+                        <Button onClick={hangUp} variant="destructive" className="rounded-full h-16 w-16 p-0">
                             <PhoneOff className="h-7 w-7" />
+                        </Button>
+                        <Button onClick={toggleVideo} variant="outline" className="bg-white/20 hover:bg-white/30 backdrop-blur-sm border-0 text-white rounded-full h-12 w-12 p-0">
+                            {isVideoEnabled ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
                         </Button>
                     </>
                 )}

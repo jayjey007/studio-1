@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video } from "lucide-react";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/app/actions/send-notification";
@@ -146,6 +146,21 @@ export default function ChatPage() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  
+  const [daysUntil, setDaysUntil] = useState<number | null>(null);
+
+  useEffect(() => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    let targetDate = new Date(currentYear, 11, 11); // Month is 0-indexed, so 11 is December
+
+    if (today > targetDate) {
+      targetDate.setFullYear(currentYear + 1);
+    }
+    
+    setDaysUntil(differenceInCalendarDays(targetDate, today));
+  }, []);
+
 
 
   useLayoutEffect(() => {
@@ -596,6 +611,13 @@ export default function ChatPage() {
   return (
     <>
       <div className="flex h-screen w-full flex-col bg-background">
+      <div className="absolute top-2 left-2 z-10">
+          {daysUntil !== null && (
+            <div className="text-xs text-muted-foreground bg-background/50 backdrop-blur-sm px-2 py-1 rounded-md">
+              {daysUntil} {daysUntil === 1 ? 'day' : 'days'} left
+            </div>
+          )}
+        </div>
       <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -833,3 +855,5 @@ export default function ChatPage() {
 }
 
   
+
+    

@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Firestore } from 'firebase/firestore';
-import { doc, onSnapshot, collection, addDoc, updateDoc, getDoc, deleteDoc, setDoc, getDocs, query, where, limit } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, updateDoc, getDoc, deleteDoc, setDoc, getDocs } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { Button } from './ui/button';
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff } from 'lucide-react';
@@ -31,6 +31,8 @@ const servers = {
     iceCandidatePoolSize: 10,
 };
 
+type CallStatus = 'idle' | 'joining' | 'in-call' | 'error';
+
 export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
     const pc = useRef<RTCPeerConnection | null>(null);
     const localStream = useRef<MediaStream | null>(null);
@@ -38,100 +40,121 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
 
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const callDocUnsubscribe = useRef<() => void | undefined>();
+    const initiatorCandidatesUnsubscribe = useRef<() => void | undefined>();
+    const recipientCandidatesUnsubscribe = useRef<() => void | undefined>();
+
 
     const { toast } = useToast();
-    const [callStatus, setCallStatus] = useState<'idle' | 'joining' | 'in-call' | 'error'>('idle');
+    const [callStatus, setCallStatus] = useState<CallStatus>('idle');
     const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-    const [isCallee, setIsCallee] = useState(false);
 
     const pipRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [position, setPosition] = useState({ x: 20, y: 80 });
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-    const hangUp = useCallback(async (isLocalHangup = true) => {
+    const resetCallState = useCallback(() => {
+        // Close peer connection
         if (pc.current) {
             pc.current.close();
             pc.current = null;
         }
-
+    
+        // Stop media tracks
         if (localStream.current) {
             localStream.current.getTracks().forEach(track => track.stop());
             localStream.current = null;
         }
-
         if (remoteStream.current) {
             remoteStream.current.getTracks().forEach(track => track.stop());
             remoteStream.current = null;
         }
-        
+    
+        // Clear video elements
         if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         if (localVideoRef.current) localVideoRef.current.srcObject = null;
-
-
-        if (firestore && isLocalHangup) {
-            const callDocRef = doc(firestore, 'videoCalls', callId);
-            if ((await getDoc(callDocRef)).exists()) {
-                const initiatorCandidatesQuery = await getDocs(collection(callDocRef, 'initiatorCandidates'));
-                initiatorCandidatesQuery.forEach(async (candidateDoc) => await deleteDoc(candidateDoc.ref));
-                
-                const recipientCandidatesQuery = await getDocs(collection(callDocRef, 'recipientCandidates'));
-                recipientCandidatesQuery.forEach(async (candidateDoc) => await deleteDoc(candidateDoc.ref));
-                
-                await deleteDoc(callDocRef);
-            }
-        }
-        
+    
+        // Unsubscribe from Firestore listeners
+        callDocUnsubscribe.current?.();
+        initiatorCandidatesUnsubscribe.current?.();
+        recipientCandidatesUnsubscribe.current?.();
+    
+        // Reset state variables
         setCallStatus('idle');
         setHasCameraPermission(null);
-        window.location.reload(); 
-    }, [firestore, callId]);
+        setIsVideoEnabled(true);
+        setIsAudioEnabled(true);
+        setPosition({ x: 20, y: 80 });
+        
+        // Re-request permissions for the next call
+        getCameraPermission();
+    }, []);
+
+    const hangUp = useCallback(async (isLocalHangup = true) => {
+        if (isLocalHangup && firestore) {
+            try {
+                const callDocRef = doc(firestore, 'videoCalls', callId);
+                const callDocSnap = await getDoc(callDocRef);
+                
+                if (callDocSnap.exists()) {
+                    const initiatorCandidatesQuery = await getDocs(collection(callDocRef, 'initiatorCandidates'));
+                    initiatorCandidatesQuery.forEach(async (candidateDoc) => await deleteDoc(candidateDoc.ref));
+                    
+                    const recipientCandidatesQuery = await getDocs(collection(callDocRef, 'recipientCandidates'));
+                    recipientCandidatesQuery.forEach(async (candidateDoc) => await deleteDoc(candidateDoc.ref));
+                    
+                    await deleteDoc(callDocRef);
+                }
+            } catch (error: any) {
+                console.error("Error during hangup cleanup:", error);
+                toast({ title: "Hangup Error", description: "Could not clean up call resources.", variant: "destructive" });
+            }
+        }
+        resetCallState();
+    }, [firestore, callId, resetCallState, toast]);
+
+    const getCameraPermission = useCallback(async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localStream.current = stream;
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = stream;
+            }
+            setHasCameraPermission(true);
+        } catch (error) {
+            console.error('Error accessing camera:', error);
+            setHasCameraPermission(false);
+            toast({
+                variant: 'destructive',
+                title: 'Camera & Mic Access Denied',
+                description: 'Please enable camera and microphone permissions to use this feature.',
+            });
+        }
+    }, [toast]);
 
 
     useEffect(() => {
-        const getCameraPermission = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                localStream.current = stream;
-                if (localVideoRef.current) {
-                    localVideoRef.current.srcObject = stream;
-                }
-                setHasCameraPermission(true);
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-                setHasCameraPermission(false);
-                toast({
-                    variant: 'destructive',
-                    title: 'Camera Access Denied',
-                    description: 'Please enable camera permissions to use this feature.',
-                });
-            }
-        };
         getCameraPermission();
-        
         return () => {
             localStream.current?.getTracks().forEach(track => track.stop());
         }
-    }, [toast]);
+    }, [getCameraPermission]);
     
-    // Listen for incoming calls
     useEffect(() => {
         if (!firestore || !currentUser) return;
-        
         const callDocRef = doc(firestore, 'videoCalls', callId);
 
-        const unsubscribe = onSnapshot(callDocRef, (snapshot) => {
-            if (snapshot.exists() && snapshot.data().recipientUid === currentUser.uid && snapshot.data().status === 'ringing') {
-                setIsCallee(true);
+        callDocUnsubscribe.current = onSnapshot(callDocRef, (snapshot) => {
+            if (!snapshot.exists() && callStatus !== 'idle') {
+                hangUp(false);
             }
         });
 
-        return () => unsubscribe();
-
-    }, [firestore, callId, currentUser]);
-
+        return () => callDocUnsubscribe.current?.();
+    }, [firestore, callId, currentUser, callStatus, hangUp]);
 
     const joinCall = async () => {
         if (!firestore || !currentUser || !localStream.current) {
@@ -141,90 +164,90 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
 
         setCallStatus('joining');
 
-        pc.current = new RTCPeerConnection(servers);
+        try {
+            pc.current = new RTCPeerConnection(servers);
 
-        localStream.current.getTracks().forEach(track => {
-            pc.current!.addTrack(track, localStream.current!);
-        });
-
-        remoteStream.current = new MediaStream();
-        pc.current.ontrack = event => {
-            event.streams[0].getTracks().forEach(track => {
-                remoteStream.current!.addTrack(track);
+            localStream.current.getTracks().forEach(track => {
+                pc.current!.addTrack(track, localStream.current!);
             });
-        };
 
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream.current;
-        }
-        
-        const callDocRef = doc(firestore, 'videoCalls', callId);
-        const initiatorCandidatesRef = collection(callDocRef, 'initiatorCandidates');
-        const recipientCandidatesRef = collection(callDocRef, 'recipientCandidates');
-        
-        pc.current.onicecandidate = async event => {
-            if (event.candidate) {
-                const callDoc = await getDoc(callDocRef);
-                const isInitiator = callDoc.exists() && callDoc.data().initiatorUid === currentUser.uid;
+            remoteStream.current = new MediaStream();
+            pc.current.ontrack = event => {
+                event.streams[0].getTracks().forEach(track => {
+                    remoteStream.current!.addTrack(track);
+                });
+            };
 
-                if (isInitiator) {
-                    await addDoc(initiatorCandidatesRef, event.candidate.toJSON());
-                } else {
-                    await addDoc(recipientCandidatesRef, event.candidate.toJSON());
-                }
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = remoteStream.current;
             }
-        };
-        
-        onSnapshot(callDocRef, (snapshot) => {
-            if (!snapshot.exists()) {
-                hangUp(false);
-            }
-        });
-
-        const callDoc = await getDoc(callDocRef);
-
-        if (callDoc.exists()) { // This user is the RECIPIENT/CALLEE
-            setIsCallee(true);
-            await pc.current.setRemoteDescription(new RTCSessionDescription(callDoc.data().offer));
             
-            const answerDescription = await pc.current.createAnswer();
-            await pc.current.setLocalDescription(answerDescription);
-            const answer = { type: answerDescription.type, sdp: answerDescription.sdp };
-            await updateDoc(callDocRef, { answer, status: 'connected' });
+            const callDocRef = doc(firestore, 'videoCalls', callId);
+            const initiatorCandidatesRef = collection(callDocRef, 'initiatorCandidates');
+            const recipientCandidatesRef = collection(callDocRef, 'recipientCandidates');
+            
+            pc.current.onicecandidate = async event => {
+                if (event.candidate) {
+                    const callDoc = await getDoc(callDocRef);
+                    const isInitiator = callDoc.exists() && callDoc.data().initiatorUid === currentUser.uid;
 
-            onSnapshot(initiatorCandidatesRef, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added') {
-                        pc.current?.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+                    if (isInitiator) {
+                        await addDoc(initiatorCandidatesRef, event.candidate.toJSON());
+                    } else {
+                        await addDoc(recipientCandidatesRef, event.candidate.toJSON());
                     }
-                });
-            });
-            setCallStatus('in-call');
-
-        } else { // This user is the INITIATOR/CALLER
-            const offerDescription = await pc.current.createOffer();
-            await pc.current.setLocalDescription(offerDescription);
-            const offer = { sdp: offerDescription.sdp, type: offerDescription.type };
-            const recipient = ALL_USERS.find(u => u.uid !== currentUser.uid);
-
-            await setDoc(callDocRef, { offer, initiatorUid: currentUser.uid, recipientUid: recipient!.uid, status: 'ringing' });
-
-            onSnapshot(callDocRef, (snapshot) => {
-                const data = snapshot.data();
-                if (data?.answer && pc.current && !pc.current.currentRemoteDescription) {
-                    const answerDescription = new RTCSessionDescription(data.answer);
-                    pc.current.setRemoteDescription(answerDescription);
-                    setCallStatus('in-call');
                 }
-            });
+            };
+            
+            const callDoc = await getDoc(callDocRef);
 
-            onSnapshot(recipientCandidatesRef, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added') {
-                        pc.current?.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+            if (callDoc.exists()) { // This user is the RECIPIENT/CALLEE
+                await pc.current.setRemoteDescription(new RTCSessionDescription(callDoc.data().offer));
+                
+                const answerDescription = await pc.current.createAnswer();
+                await pc.current.setLocalDescription(answerDescription);
+                const answer = { type: answerDescription.type, sdp: answerDescription.sdp };
+                await updateDoc(callDocRef, { answer, status: 'connected' });
+
+                initiatorCandidatesUnsubscribe.current = onSnapshot(initiatorCandidatesRef, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === 'added') {
+                            pc.current?.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+                        }
+                    });
+                });
+                setCallStatus('in-call');
+
+            } else { // This user is the INITIATOR/CALLER
+                const offerDescription = await pc.current.createOffer();
+                await pc.current.setLocalDescription(offerDescription);
+                const offer = { sdp: offerDescription.sdp, type: offerDescription.type };
+                const recipient = ALL_USERS.find(u => u.uid !== currentUser.uid);
+
+                await setDoc(callDocRef, { offer, initiatorUid: currentUser.uid, recipientUid: recipient!.uid, status: 'ringing' });
+
+                callDocUnsubscribe.current = onSnapshot(callDocRef, (snapshot) => {
+                    const data = snapshot.data();
+                    if (data?.answer && pc.current && !pc.current.currentRemoteDescription) {
+                        const answerDescription = new RTCSessionDescription(data.answer);
+                        pc.current.setRemoteDescription(answerDescription);
                     }
                 });
-            });
+
+                recipientCandidatesUnsubscribe.current = onSnapshot(recipientCandidatesRef, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === 'added') {
+                            pc.current?.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+                        }
+                    });
+                });
+                 setCallStatus('in-call');
+            }
+        } catch(error: any) {
+            console.error("Error joining call: ", error);
+            toast({ title: 'Call Error', description: `Failed to join call: ${error.message}`, variant: 'destructive'});
+            setCallStatus('error');
+            await hangUp();
         }
     };
     
@@ -341,7 +364,7 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
                 {callStatus === 'idle' && hasCameraPermission && (
                     <Button onClick={joinCall} className="bg-green-500 hover:bg-green-600 text-white rounded-full h-16 w-16 p-0 border-0">
                        <Phone className="h-7 w-7" />
-                       <span className="sr-only">{isCallee ? 'Join Call' : 'Start Call'}</span>
+                       <span className="sr-only">Join Call</span>
                     </Button>
                 )}
 
@@ -364,3 +387,5 @@ export function VideoChat({ firestore, callId, currentUser }: VideoChatProps) {
         </div>
     );
 }
+
+    

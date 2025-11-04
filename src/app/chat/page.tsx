@@ -103,6 +103,25 @@ const LinkifiedText = ({ text }: { text: string }) => {
     );
 };
 
+const HeartIcon = ({ className }: { className?: string }) => (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="url(#heart-gradient)"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <defs>
+        <linearGradient id="heart-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style={{ stopColor: '#FF8A8A', stopOpacity: 1 }} />
+          <stop offset="100%" style={{ stopColor: '#FFB2B2', stopOpacity: 1 }} />
+        </linearGradient>
+      </defs>
+      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+    </svg>
+  );
+
 
 export default function ChatPage() {
   const router = useRouter();
@@ -613,8 +632,12 @@ export default function ChatPage() {
       <div className="flex h-screen w-full flex-col bg-background">
       <div className="absolute top-2 left-2 z-10">
           {daysUntil !== null && (
-            <div className="text-xs text-muted-foreground bg-background/50 backdrop-blur-sm px-2 py-1 rounded-md">
-              {daysUntil} {daysUntil === 1 ? 'day' : 'days'} left
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-background/50 backdrop-blur-sm px-2 py-1 rounded-full shadow">
+              <HeartIcon className="h-4 w-4" />
+              <span className="font-medium text-foreground">
+                {daysUntil} {daysUntil === 1 ? 'day' : 'days'} left
+              </span>
+              <HeartIcon className="h-4 w-4" />
             </div>
           )}
         </div>

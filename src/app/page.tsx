@@ -101,6 +101,7 @@ export default function NewsLoginPage() {
                     alt={heroImage.description}
                     width={800}
                     height={450}
+                    priority
                     className="aspect-video w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     data-ai-hint={heroImage.imageHint}
                   />

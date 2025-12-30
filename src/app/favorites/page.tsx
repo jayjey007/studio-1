@@ -90,41 +90,25 @@ export default function FavoritesPage() {
     setIsLoading(true);
     const messagesRef = collection(db, "messages");
     
-    // Query for messages sent by the user that are favorited
-    const sentQuery = query(
-        messagesRef, 
-        where("senderUid", "==", currentUserObject.uid), 
+    // Query for messages where the user is either the sender or receiver, and the message is favorited.
+    // Firestore requires separate queries for this 'OR' condition.
+    const userIsParticipantQuery = query(
+        messagesRef,
         where("isFavorited", "==", true),
+        or(
+            where("senderUid", "==", currentUserObject.uid),
+            where("recipientUid", "==", currentUserObject.uid)
+        ),
         orderBy("createdAt", "desc")
     );
 
-    // Query for messages received by the user that are favorited
-    const receivedQuery = query(
-        messagesRef, 
-        where("recipientUid", "==", currentUserObject.uid), 
-        where("isFavorited", "==", true),
-        orderBy("createdAt", "desc")
-    );
 
     try {
-        const [sentSnapshot, receivedSnapshot] = await Promise.all([
-            getDocs(sentQuery),
-            getDocs(receivedQuery)
-        ]);
+        const querySnapshot = await getDocs(userIsParticipantQuery);
         
-        const favsMap = new Map<string, Message>();
+        const favs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
         
-        sentSnapshot.forEach(doc => {
-            favsMap.set(doc.id, { id: doc.id, ...doc.data() } as Message);
-        });
-
-        receivedSnapshot.forEach(doc => {
-            favsMap.set(doc.id, { id: doc.id, ...doc.data() } as Message);
-        });
-
-        const allFavorites = Array.from(favsMap.values()).sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-        
-        setFavorites(allFavorites);
+        setFavorites(favs);
     } catch (error) {
         console.error("Error fetching favorites:", error);
     } finally {

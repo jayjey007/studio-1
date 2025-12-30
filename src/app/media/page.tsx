@@ -10,10 +10,9 @@ import { useFirebase } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ArrowLeft, Image as ImageIcon, Video, Music } from "lucide-react";
+import { Loader2, ArrowLeft, Image as ImageIcon, Video, Music, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import type { Message } from "../chat/page";
-import { cn } from "@/lib/utils";
 
 const ALL_USERS = [
     { username: 'Crazy', uid: 'QYTCCLfLg1gxdLLQy34y0T2Pz3g2' },
@@ -35,6 +34,12 @@ export default function MediaPage() {
       setCurrentUser(user);
     }
   }, [router]);
+  
+  const handleLogout = useCallback(() => {
+    sessionStorage.removeItem("isAuthenticated");
+    sessionStorage.removeItem("currentUser");
+    router.replace("/");
+  }, [router]);
 
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
@@ -44,27 +49,39 @@ export default function MediaPage() {
     setIsLoading(true);
     const messagesRef = collection(db, "messages");
     
-    // Query for messages that have an imageUrl, videoUrl, or audioUrl
-    const mediaQuery = query(
-      messagesRef,
-      or(
-        where("imageUrl", "!=", null),
-        where("videoUrl", "!=", null),
-        where("audioUrl", "!=", null)
-      ),
-      orderBy("createdAt", "desc")
-    );
-
+    // Firestore does not allow `!=` in `or` queries. We must fetch each type and merge.
+    const imageQuery = query(messagesRef, where("imageUrl", ">", ""), orderBy("imageUrl"), orderBy("createdAt", "desc"));
+    const videoQuery = query(messagesRef, where("videoUrl", ">", ""), orderBy("videoUrl"), orderBy("createdAt", "desc"));
+    const audioQuery = query(messagesRef, where("audioUrl", ">", ""), orderBy("audioUrl"), orderBy("createdAt", "desc"));
+    
     try {
-      const querySnapshot = await getDocs(mediaQuery);
-      const allMedia = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-      
-      // Filter client-side to ensure user is part of the conversation
-      const userMedia = allMedia.filter(
-        item => item.senderUid === currentUserObject.uid || item.recipientUid === currentUserObject.uid
-      );
-      
-      setMediaItems(userMedia);
+      const [imageSnapshot, videoSnapshot, audioSnapshot] = await Promise.all([
+        getDocs(imageQuery),
+        getDocs(videoQuery),
+        getDocs(audioQuery),
+      ]);
+
+      const mediaMap = new Map<string, Message>();
+
+      const processSnapshot = (snapshot: any) => {
+        snapshot.docs.forEach((doc: any) => {
+          const item = { id: doc.id, ...doc.data() } as Message;
+          // Filter to ensure user is part of the conversation
+          if (item.senderUid === currentUserObject.uid || item.recipientUid === currentUserObject.uid) {
+            mediaMap.set(doc.id, item);
+          }
+        });
+      };
+
+      processSnapshot(imageSnapshot);
+      processSnapshot(videoSnapshot);
+      processSnapshot(audioSnapshot);
+
+      const allMedia = Array.from(mediaMap.values())
+        .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+
+      setMediaItems(allMedia);
+
     } catch (error) {
       console.error("Error fetching media:", error);
     } finally {
@@ -154,6 +171,13 @@ export default function MediaPage() {
           </div>
         </ScrollArea>
       </main>
+       <footer className="shrink-0 border-t bg-card p-2 md:p-4">
+        <div className="flex items-center justify-end">
+            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Logout">
+              <LogOut className="h-5 w-5" />
+            </Button>
+        </div>
+      </footer>
     </div>
   );
 }

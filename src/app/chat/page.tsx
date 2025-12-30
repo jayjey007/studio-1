@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video } from "lucide-react";
+import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video, GalleryVertical } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -171,7 +171,7 @@ export default function ChatPage() {
   useEffect(() => {
     const today = new Date();
     const currentYear = today.getFullYear();
-    let targetDate = new Date(currentYear, 11, 12); // Month is 0-indexed, so 11 is December
+    let targetDate = new Date(currentYear, 11, 11); // Month is 0-indexed, so 11 is December
 
     if (today > targetDate) {
       targetDate.setFullYear(currentYear + 1);
@@ -664,7 +664,7 @@ export default function ChatPage() {
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/media">
-                      <Image className="mr-2 h-4 w-4" />
+                      <GalleryVertical className="mr-2 h-4 w-4" />
                       <span>Shared Media</span>
                     </Link>
                   </DropdownMenuItem>

@@ -662,6 +662,12 @@ export default function ChatPage() {
                       <span>Favorites</span>
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/media">
+                      <Image className="mr-2 h-4 w-4" />
+                      <span>Shared Media</span>
+                    </Link>
+                  </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/bucket-list">
                     <ListPlus className="mr-2 h-4 w-4" />
@@ -876,5 +882,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-  

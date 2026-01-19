@@ -268,14 +268,20 @@ export async function sendNotification({ message, sender, messageId }: sendNotif
             const { fact, newUsedIndices } = await getFunFact(firestore, recipient.uid);
             const payload: Message = {
                 token: fcmToken,
-                data: {
-                    title: 'Fun Fact',
+                notification: {
+                    title: "Fun Fact",
                     body: fact,
+                },
+                data: {
                     messageId: messageId,
                 },
                 apns: {
                     payload: {
-                        aps: {                         
+                        aps: {
+                            alert: {
+                                title: "Fun Fact",
+                                body: fact,
+                            },
                             sound: 'default',
                             badge: 1,
                         },

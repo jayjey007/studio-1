@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
@@ -12,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/AlertDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video, GalleryVertical, Download } from "lucide-react";
@@ -125,6 +124,7 @@ const ThumbnailImage = ({ message, className }: { message: Message, className?: 
   const [src, setSrc] = useState<string>(() => {
     if (message.thumbnailUrl) return message.thumbnailUrl;
     if (message.imageUrl) {
+        // Fallback to deriving thumbnail URL from original
         return message.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
     }
     return '';
@@ -146,6 +146,7 @@ const ThumbnailImage = ({ message, className }: { message: Message, className?: 
         fill
         className={cn("object-cover hover:opacity-90 transition-opacity", className)}
         onError={handleError}
+        sizes="(max-width: 768px) 100vw, 300px"
       />
     </div>
   );
@@ -219,8 +220,7 @@ export default function ChatPage() {
       } else {
          const newScrollHeight = viewport.scrollHeight;
         if (newScrollHeight > prevScrollHeightRef.current) {
-           // This logic is primarily for when messages are prepended at the top
-           // We don't want to jump down if the user is scrolling up to see old messages
+           // This logic is for when messages are prepended at the top
            if (!atBottomRef.current) {
               viewport.scrollTop += newScrollHeight - prevScrollHeightRef.current;
            }
@@ -245,7 +245,7 @@ export default function ChatPage() {
           newMessages.forEach(m => messageMap.set(m.id, m));
           const updatedMessages = Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
 
-          // If we were at the bottom before, or this is initial load, we should scroll down
+          // If we were at the bottom before, or this is initial load, scroll down
           if (isLoading || (atBottomRef.current && updatedMessages.length > prevMessages.length)) {
             shouldScrollToBottomRef.current = true;
           } else {
@@ -282,11 +282,9 @@ export default function ChatPage() {
           if (documentSnapshots.docs.length > 0) {
             const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
             
-            // When loading more, we definitely don't want to snap to bottom
             shouldScrollToBottomRef.current = false;
             
             setMessages(prev => {
-                // Prepend new messages
                 const messageMap = new Map([...newMessages, ...prev].map(m => [m.id, m]));
                 return Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
             });
@@ -430,7 +428,6 @@ export default function ChatPage() {
     if (!currentUser || !db || !storage || !currentUserObject) return;
 
     setIsSending(true);
-    // User sent a message, we definitely want to scroll to bottom
     shouldScrollToBottomRef.current = true;
 
     const recipientUser = ALL_USERS.find(u => u.username !== currentUser);
@@ -591,8 +588,7 @@ export default function ChatPage() {
     const viewport = e.currentTarget;
     if (viewport) {
       const { scrollTop, scrollHeight, clientHeight } = viewport;
-      // Allow a small margin for error (1px)
-      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 5;
+      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 10;
       atBottomRef.current = isAtBottom;
     }
   };

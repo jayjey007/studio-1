@@ -572,9 +572,6 @@ export default function ChatPage() {
           )}
         </div>
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Logout">
-              <LogOut className="h-5 w-5" />
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -687,6 +684,9 @@ export default function ChatPage() {
           <div className="flex items-end gap-2">
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttachClick} disabled={isSending || isRecording}><Paperclip className="h-5 w-5" /></Button>
+             <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleLogout} aria-label="Logout">
+              <LogOut className="h-5 w-5" />
+            </Button>
             <Textarea
               ref={inputRef}
               placeholder={isRecording ? "Recording..." : "Type your message..."}

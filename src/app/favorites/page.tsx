@@ -21,7 +21,6 @@ const ALL_USERS = [
     { username: 'Cool', uid: 'N2911Sj2g8cT03s5v31s1p9V8s22' }
 ];
 
-// Simple Caesar cipher for decoding
 const decodeMessage = (text: string, shift: number = 1): string => {
   return text
     .split('')
@@ -59,6 +58,34 @@ const LinkifiedText = ({ text }: { text: string }) => {
             })}
         </p>
     );
+};
+
+const ThumbnailImage = ({ message, className }: { message: Message, className?: string }) => {
+  const [src, setSrc] = useState<string>(() => {
+    if (message.thumbnailUrl) return message.thumbnailUrl;
+    if (message.imageUrl) {
+        return message.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
+    }
+    return '';
+  });
+
+  const handleError = () => {
+    if (message.imageUrl && src !== message.imageUrl) {
+      setSrc(message.imageUrl);
+    }
+  };
+
+  if (!src) return null;
+
+  return (
+    <Image 
+      src={src} 
+      alt={`Shared by ${message.sender}`} 
+      fill
+      className={cn("object-cover", className)} 
+      onError={handleError}
+    />
+  );
 };
 
 export default function FavoritesPage() {
@@ -124,14 +151,6 @@ export default function FavoritesPage() {
     return message.isEncoded ? decodeMessage(message.scrambledText) : message.scrambledText;
   };
 
-  const getThumbnailSrc = (item: Message) => {
-    if (item.thumbnailUrl) return item.thumbnailUrl;
-    if (item.imageUrl) {
-        return item.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
-    }
-    return '';
-  };
-
   if (!currentUser) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -177,12 +196,7 @@ export default function FavoritesPage() {
                     <CardContent>
                       {(message.imageUrl || message.thumbnailUrl) && (
                         <div className="mb-2 relative aspect-video rounded-md overflow-hidden">
-                          <Image 
-                              src={getThumbnailSrc(message) || message.imageUrl || ''} 
-                              alt="Attached image" 
-                              fill
-                              className="object-cover" 
-                          />
+                          <ThumbnailImage message={message} />
                         </div>
                       )}
                       {message.videoUrl && (

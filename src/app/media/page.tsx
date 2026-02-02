@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Message } from "../chat/page";
+import { cn } from "@/lib/utils";
 
 const ALL_USERS = [
     { username: 'Crazy', uid: 'QYTCCLfLg1gxdLLQy34y0T2Pz3g2' },
@@ -24,6 +25,34 @@ const ALL_USERS = [
 const PAGE_SIZE = 12;
 
 type MediaTab = 'images' | 'videos' | 'audios';
+
+const ThumbnailImage = ({ message, className }: { message: Message, className?: string }) => {
+  const [src, setSrc] = useState<string>(() => {
+    if (message.thumbnailUrl) return message.thumbnailUrl;
+    if (message.imageUrl) {
+        return message.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
+    }
+    return '';
+  });
+
+  const handleError = () => {
+    if (message.imageUrl && src !== message.imageUrl) {
+      setSrc(message.imageUrl);
+    }
+  };
+
+  if (!src) return null;
+
+  return (
+    <Image 
+      src={src} 
+      alt={`Shared by ${message.sender}`} 
+      fill
+      className={cn("object-cover transition-transform group-hover:scale-105", className)} 
+      onError={handleError}
+    />
+  );
+};
 
 export default function MediaPage() {
   const router = useRouter();
@@ -67,14 +96,6 @@ export default function MediaPage() {
   }, [router]);
 
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
-
-  const getThumbnailSrc = (item: Message) => {
-    if (item.thumbnailUrl) return item.thumbnailUrl;
-    if (item.imageUrl) {
-        return item.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
-    }
-    return '';
-  };
 
   const fetchMedia = useCallback(async (mediaType: MediaTab, lastVisible: QueryDocumentSnapshot | null = null) => {
     if (!db || !currentUserObject) return;
@@ -170,12 +191,7 @@ export default function MediaPage() {
                 onClick={() => setSelectedMedia(item)}
               >
                 {type === 'images' && (item.imageUrl || item.thumbnailUrl) && (
-                  <Image
-                    src={getThumbnailSrc(item) || item.imageUrl || ''}
-                    alt={`Shared by ${item.sender}`}
-                    fill
-                    className="object-cover transition-transform group-hover:scale-105"
-                  />
+                  <ThumbnailImage message={item} />
                 )}
                 {type === 'videos' && item.videoUrl && (
                   <div className="relative w-full h-full">

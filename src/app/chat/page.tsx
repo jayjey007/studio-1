@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video, GalleryVertical, Download, ExternalLink } from "lucide-react";
+import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video, GalleryVertical, Download } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -32,8 +32,8 @@ const ALL_USERS = [
 export interface Message {
   id: string;
   scrambledText: string;
-  sender: string; // username
-  recipient: string; //username
+  sender: string;
+  recipient: string;
   senderUid: string;
   recipientUid: string;
   createdAt: Timestamp;
@@ -49,7 +49,6 @@ export interface Message {
   isFavorited?: boolean;
 }
 
-// Simple Caesar cipher for encoding
 const encodeMessage = (text: string, shift: number = 1): string => {
   return text
     .split('')
@@ -63,7 +62,6 @@ const encodeMessage = (text: string, shift: number = 1): string => {
     .join('');
 };
 
-// Simple Caesar cipher for decoding
 const decodeMessage = (text: string, shift: number = 1): string => {
   return text
     .split('')
@@ -122,6 +120,35 @@ const HeartIcon = ({ className }: { className?: string }) => (
       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
     </svg>
   );
+
+const ThumbnailImage = ({ message, className }: { message: Message, className?: string }) => {
+  const [src, setSrc] = useState<string>(() => {
+    if (message.thumbnailUrl) return message.thumbnailUrl;
+    if (message.imageUrl) {
+        return message.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
+    }
+    return '';
+  });
+
+  const handleError = () => {
+    if (message.imageUrl && src !== message.imageUrl) {
+      setSrc(message.imageUrl);
+    }
+  };
+
+  if (!src) return null;
+
+  return (
+    <Image 
+      src={src} 
+      alt="Attached image" 
+      width={300} 
+      height={300} 
+      className={cn("max-w-full h-auto rounded-md hover:opacity-90 transition-opacity", className)}
+      onError={handleError}
+    />
+  );
+};
 
 
 export default function ChatPage() {
@@ -598,14 +625,6 @@ export default function ChatPage() {
       }
   };
 
-  const getThumbnailSrc = (item: Message) => {
-    if (item.thumbnailUrl) return item.thumbnailUrl;
-    if (item.imageUrl) {
-        return item.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
-    }
-    return '';
-  };
-
   return (
     <>
       <div className="flex h-screen w-full flex-col bg-background">
@@ -704,13 +723,7 @@ export default function ChatPage() {
                               )}
                               {message.imageUrl && (
                                 <div className="mb-2" onClick={(e) => { e.stopPropagation(); setViewingMedia(message); }}>
-                                  <Image 
-                                    src={getThumbnailSrc(message) || message.imageUrl} 
-                                    alt="Attached image" 
-                                    width={300} 
-                                    height={300} 
-                                    className="max-w-full h-auto rounded-md hover:opacity-90 transition-opacity" 
-                                  />
+                                  <ThumbnailImage message={message} />
                                 </div>
                               )}
                               {message.videoUrl && (

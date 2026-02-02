@@ -5,8 +5,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { collection, query, where, orderBy, getDocs, Timestamp, or, and } from "firebase/firestore";
-import { useFirebase, useMemoFirebase } from "@/firebase";
+import { collection, query, where, orderBy, getDocs, or, and } from "firebase/firestore";
+import { useFirebase } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,15 +75,16 @@ const ThumbnailImage = ({ message, className }: { message: Message, className?: 
     }
   };
 
-  if (!src) return null;
+  if (!src && !message.imageUrl) return null;
 
   return (
     <Image 
-      src={src} 
+      src={src || message.imageUrl || ""} 
       alt={`Shared by ${message.sender}`} 
       fill
       className={cn("object-cover", className)} 
       onError={handleError}
+      sizes="(max-width: 768px) 100vw, 33vw"
     />
   );
 };
@@ -237,10 +238,10 @@ export default function FavoritesPage() {
       <Dialog open={!!viewingMedia} onOpenChange={() => setViewingMedia(null)}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-black/95">
           <DialogHeader className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
-            <DialogTitle className="text-white font-medium flex items-center justify-between">
+            <DialogTitle className="text-white font-medium flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 {viewingMedia && (viewingMedia.imageUrl || viewingMedia.videoUrl) && (
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-8 w-8" asChild>
                     <a href={viewingMedia.imageUrl || viewingMedia.videoUrl} download target="_blank">
                       <Download className="h-4 w-4" />
                     </a>
@@ -248,7 +249,7 @@ export default function FavoritesPage() {
                 )}
               </div>
               <div className="flex flex-col gap-1 text-right">
-                <span className="text-sm">Shared by {viewingMedia?.sender}</span>
+                <span>Shared by {viewingMedia?.sender}</span>
                 <span className="text-[10px] opacity-70">
                   {viewingMedia?.createdAt && format(viewingMedia.createdAt.toDate(), "MMMM d, yyyy 'at' h:mm a")}
                 </span>

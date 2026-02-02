@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, limit, startAfter, getDocs, updateDoc } from "firebase/firestore";
+import { collection, serverTimestamp, query, orderBy, onSnapshot, deleteDoc, doc, Timestamp, limit, startAfter, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getMessaging, getToken, isSupported } from "firebase/messaging";
 import { Button } from "@/components/ui/button";
@@ -151,7 +151,6 @@ const ThumbnailImage = ({ message, className }: { message: Message, className?: 
     </div>
   );
 };
-
 
 export default function ChatPage() {
   const router = useRouter();

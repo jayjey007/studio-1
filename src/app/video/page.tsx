@@ -7,7 +7,6 @@ import { useFirebase } from '@/firebase/provider';
 import { VideoChat } from '@/components/VideoChat';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, LogOut } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import type { User } from 'firebase/auth';
 
 const ALL_USERS = [
@@ -35,8 +34,6 @@ export default function VideoPage() {
             return;
         }
 
-        // Use a mock user object if Firebase auth isn't fully loaded,
-        // ensuring the UID is available for the VideoChat component.
         if (auth.currentUser) {
             setCurrentUser(auth.currentUser);
         } else {

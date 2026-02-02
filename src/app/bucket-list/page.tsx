@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { collection, serverTimestamp, query, orderBy, onSnapshot, Timestamp, doc, deleteDoc } from "firebase/firestore";
+import { collection, serverTimestamp, query, orderBy, onSnapshot, doc } from "firebase/firestore";
 import { useFirebase, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,7 @@ interface BucketListItem {
   id: string;
   text: string;
   authorUsername: string;
-  createdAt: Timestamp;
+  createdAt: any;
   isDone: boolean;
   priority: Priority;
 }
@@ -87,7 +87,9 @@ export default function BucketListPage() {
         if (priorityA !== priorityB) {
           return priorityB - priorityA;
         }
-        return b.createdAt.toMillis() - a.createdAt.toMillis();
+        const timeA = a.createdAt?.toMillis() || 0;
+        const timeB = b.createdAt?.toMillis() || 0;
+        return timeB - timeA;
       });
 
       setItems(sortedItems);

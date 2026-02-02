@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { collection, serverTimestamp, query, orderBy, onSnapshot, Timestamp, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, serverTimestamp, query, orderBy, onSnapshot, doc } from "firebase/firestore";
 import { useFirebase, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +18,7 @@ interface LetterEntry {
   id: string;
   text: string;
   authorUsername: string;
-  createdAt: Timestamp;
+  createdAt: any;
 }
 
 export default function LetterPage() {

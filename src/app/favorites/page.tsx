@@ -10,7 +10,8 @@ import { useFirebase, useMemoFirebase } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, Star, LogOut } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, ArrowLeft, Star, LogOut, Download, ExternalLink, Video } from "lucide-react";
 import { format } from "date-fns";
 import type { Message } from "../chat/page";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,7 @@ export default function FavoritesPage() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewingMedia, setViewingMedia] = useState<Message | null>(null);
 
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
@@ -105,9 +107,7 @@ export default function FavoritesPage() {
 
     try {
         const querySnapshot = await getDocs(userIsParticipantQuery);
-        
         const favs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-        
         setFavorites(favs);
     } catch (error) {
         console.error("Error fetching favorites:", error);
@@ -122,6 +122,14 @@ export default function FavoritesPage() {
 
   const getMessageText = (message: Message) => {
     return message.isEncoded ? decodeMessage(message.scrambledText) : message.scrambledText;
+  };
+
+  const getThumbnailSrc = (item: Message) => {
+    if (item.thumbnailUrl) return item.thumbnailUrl;
+    if (item.imageUrl) {
+        return item.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
+    }
+    return '';
   };
 
   if (!currentUser) {
@@ -154,52 +162,110 @@ export default function FavoritesPage() {
                 <p className="mt-4">You haven't favorited any messages yet.</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {favorites.map((message) => (
-                  <Link href={`/chat#${message.id}`} key={message.id}>
-                    <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-                      <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-base font-medium">
-                            {message.sender === currentUser ? 'You' : message.sender}
-                        </CardTitle>
-                        <div className="flex items-center text-xs text-muted-foreground">
-                            <Star className="h-3 w-3 mr-1 fill-yellow-500 text-yellow-500" />
-                            {message.createdAt && format(message.createdAt.toDate(), "MMM d, yyyy")}
+                  <Card key={message.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { if(message.imageUrl || message.videoUrl) setViewingMedia(message); }}>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">
+                          {message.sender === currentUser ? 'You' : message.sender}
+                      </CardTitle>
+                      <div className="flex items-center text-[10px] text-muted-foreground">
+                          <Star className="h-3 w-3 mr-1 fill-yellow-500 text-yellow-500" />
+                          {message.createdAt && format(message.createdAt.toDate(), "MMM d, yyyy")}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {(message.imageUrl || message.thumbnailUrl) && (
+                        <div className="mb-2 relative aspect-video rounded-md overflow-hidden">
+                          <Image 
+                              src={getThumbnailSrc(message) || message.imageUrl || ''} 
+                              alt="Attached image" 
+                              fill
+                              className="object-cover" 
+                          />
                         </div>
-                      </CardHeader>
-                      <CardContent>
-                        {(message.imageUrl || message.thumbnailUrl) && (
-                          <div className="mb-2">
-                            <Image 
-                                src={message.thumbnailUrl || message.imageUrl || ''} 
-                                alt="Attached image" 
-                                width={150} 
-                                height={150} 
-                                className="max-w-full h-auto rounded-md" 
-                            />
+                      )}
+                      {message.videoUrl && (
+                        <div className="mb-2 relative aspect-video rounded-md overflow-hidden bg-black">
+                          <video src={message.videoUrl} preload="metadata" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                             <Video className="h-6 w-6 text-white opacity-70" />
                           </div>
-                        )}
-                        {message.videoUrl && (
-                          <div className="mb-2">
-                            <video src={message.videoUrl} controls className="max-w-[200px] h-auto rounded-md" />
-                          </div>
-                        )}
-                        {message.audioUrl && (
-                          <div className="my-2">
-                            <audio src={message.audioUrl} controls className="w-full max-w-xs" />
-                            {message.fileName && <p className="text-xs mt-1 text-muted-foreground/80">{message.fileName}</p>}
-                          </div>
-                        )}
-                        {getMessageText(message).trim() && <LinkifiedText text={getMessageText(message)} />}
-                      </CardContent>
-                    </Card>
-                  </Link>
+                        </div>
+                      )}
+                      {message.audioUrl && (
+                        <div className="my-2" onClick={(e) => e.stopPropagation()}>
+                          <audio src={message.audioUrl} controls className="w-full" />
+                          {message.fileName && <p className="text-[10px] mt-1 text-muted-foreground/80">{message.fileName}</p>}
+                        </div>
+                      )}
+                      {getMessageText(message).trim() && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <LinkifiedText text={getMessageText(message)} />
+                        </div>
+                      )}
+                      <div className="mt-4 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" className="h-8 text-xs" asChild>
+                              <Link href={`/chat#${message.id}`}>
+                                  <ExternalLink className="h-3 w-3 mr-1" /> View in Chat
+                              </Link>
+                          </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             )}
           </div>
         </ScrollArea>
       </main>
+
+      <Dialog open={!!viewingMedia} onOpenChange={() => setViewingMedia(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-black/95">
+          <DialogHeader className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
+            <DialogTitle className="text-white font-medium flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm">Shared by {viewingMedia?.sender}</span>
+                <span className="text-[10px] opacity-70">
+                  {viewingMedia?.createdAt && format(viewingMedia.createdAt.toDate(), "MMMM d, yyyy 'at' h:mm a")}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {viewingMedia && (viewingMedia.imageUrl || viewingMedia.videoUrl) && (
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
+                    <a href={viewingMedia.imageUrl || viewingMedia.videoUrl} download target="_blank">
+                      <Download className="h-4 w-4" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center min-h-[50vh] max-h-[85vh] p-2 pt-16">
+            {viewingMedia?.imageUrl && (
+              <div className="relative w-full h-full min-h-[400px]">
+                <Image
+                  src={viewingMedia.imageUrl}
+                  alt="Full resolution"
+                  fill
+                  className="object-contain"
+                  sizes="100vw"
+                  priority
+                />
+              </div>
+            )}
+            {viewingMedia?.videoUrl && (
+              <video
+                src={viewingMedia.videoUrl}
+                controls
+                autoPlay
+                className="max-w-full max-h-[80vh] rounded-md"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
        <footer className="shrink-0 border-t bg-card p-2 md:p-4">
         <div className="flex items-center justify-end">
             <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Logout">

@@ -13,8 +13,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video, GalleryVertical } from "lucide-react";
+import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video, GalleryVertical, Download, ExternalLink } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,7 @@ export interface Message {
   replyingToText?: string;
   replyingToSender?: string;
   imageUrl?: string;
-  thumbnailUrl?: string; // New field for generated thumbnails
+  thumbnailUrl?: string;
   videoUrl?: string;
   audioUrl?: string;
   fileName?: string;
@@ -54,7 +55,6 @@ const encodeMessage = (text: string, shift: number = 1): string => {
     .split('')
     .map(char => {
       const charCode = char.charCodeAt(0);
-      // Simple check for basic ASCII printable characters to avoid scrambling symbols/emojis too much
       if (charCode >= 32 && charCode <= 126) {
         return String.fromCharCode(charCode + shift);
       }
@@ -140,6 +140,7 @@ export default function ChatPage() {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [viewingMedia, setViewingMedia] = useState<Message | null>(null);
   
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
@@ -172,7 +173,7 @@ export default function ChatPage() {
   useEffect(() => {
     const today = new Date();
     const currentYear = today.getFullYear();
-    let targetDate = new Date(currentYear, 11, 11); // Month is 0-indexed, so 11 is December
+    let targetDate = new Date(currentYear, 11, 11);
 
     if (today > targetDate) {
       targetDate.setFullYear(currentYear + 1);
@@ -181,14 +182,12 @@ export default function ChatPage() {
     setDaysUntil(differenceInCalendarDays(targetDate, today));
   }, []);
 
-
-
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (viewport) {
       if (shouldScrollToBottomRef.current) {
         viewport.scrollTop = viewport.scrollHeight;
-        shouldScrollToBottomRef.current = false; // Reset after scrolling
+        shouldScrollToBottomRef.current = false;
       } else {
          const newScrollHeight = viewport.scrollHeight;
         if (newScrollHeight > prevScrollHeightRef.current && !atBottomRef.current) {
@@ -199,8 +198,6 @@ export default function ChatPage() {
     }
   }, [messages]);
 
-
-  // Effect for fetching messages
   useEffect(() => {
     if (!messagesCollectionRef) return;
 
@@ -212,15 +209,13 @@ export default function ChatPage() {
         const newMessages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
         
         setMessages(prevMessages => {
-          // A simple way to merge new real-time updates with existing messages
           const messageMap = new Map(prevMessages.map(m => [m.id, m]));
           newMessages.forEach(m => messageMap.set(m.id, m));
           const updatedMessages = Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
 
-          if (isLoading) { // First load
+          if (isLoading) {
             shouldScrollToBottomRef.current = true;
           } else {
-             // If a new message arrives and we are at the bottom, scroll down.
             if(updatedMessages.length > prevMessages.length && atBottomRef.current) {
                 shouldScrollToBottomRef.current = true;
             }
@@ -230,11 +225,8 @@ export default function ChatPage() {
         });
         
         const lastDoc = querySnapshot.docs[querySnapshot.docs.length > 0 ? querySnapshot.docs.length - 1 : 0];
-
         setLastVisible(lastDoc);
-        
         setHasMore(querySnapshot.docs.length >= MESSAGE_PAGE_SIZE);
-        
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching initial messages:", error);
@@ -243,9 +235,7 @@ export default function ChatPage() {
     });
 
     return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesCollectionRef]);
-
+  }, [messagesCollectionRef, isLoading, toast]);
 
   const loadMoreMessages = useCallback(async () => {
       if (!messagesCollectionRef || !hasMore || isLoadingMore || !lastVisible) return;
@@ -261,7 +251,6 @@ export default function ChatPage() {
           
           if (documentSnapshots.docs.length > 0) {
             const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
-            
             shouldScrollToBottomRef.current = false;
             setMessages(prev => [...newMessages, ...prev]);
             setLastVisible(newLastVisible);
@@ -278,7 +267,6 @@ export default function ChatPage() {
       }
   }, [messagesCollectionRef, hasMore, lastVisible, isLoadingMore, toast]);
   
-  // Intersection observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -308,18 +296,14 @@ export default function ChatPage() {
     router.replace("/");
   }, [router]);
 
-    // Effect for user activity heartbeat
   useEffect(() => {
     if (!db || !currentUserObject) return;
-    
     const userDocRef = doc(db, "users", currentUserObject.uid);
-  
     const intervalId = setInterval(() => {
       setDocumentMergeNonBlocking(userDocRef, {
         lastActive: serverTimestamp()
       });
     }, 5000); 
-  
     return () => clearInterval(intervalId);
   }, [db, currentUserObject]);
   
@@ -493,7 +477,7 @@ export default function ChatPage() {
       console.error("Error deleting message:", error);
       toast({
         title: "Error",
-        description: "Could not delete message. Please check your permissions.",
+        description: "Could not delete message.",
         variant: "destructive",
       });
     } finally {
@@ -542,7 +526,7 @@ export default function ChatPage() {
 
   const handleRequestPermission = async () => {
     if (!firebaseApp || !db || !currentUser) {
-      toast({ title: "Error", description: "Firebase not initialized or user not logged in.", variant: "destructive" });
+      toast({ title: "Error", description: "Firebase not initialized.", variant: "destructive" });
       return;
     }
     try {
@@ -557,15 +541,11 @@ export default function ChatPage() {
           const tokenRef = doc(db, 'fcmTokens', currentUser);
           await setDocumentMergeNonBlocking(tokenRef, { token: fcmToken, username: currentUser, createdAt: serverTimestamp() });
           toast({ title: 'Success', description: 'Notification token saved.' });
-        } else {
-          toast({ title: "Error", description: "Could not get notification token.", variant: "destructive" });
         }
-      } else {
-        toast({ title: "Permission Denied", description: "You will not receive notifications.", variant: "destructive" });
       }
     } catch (error: any) {
       console.error('Error getting notification permission:', error);
-      toast({ title: "Error Requesting Permission", description: error.message || "An error occurred.", variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
@@ -592,11 +572,7 @@ export default function ChatPage() {
         const fileExtension = isSupportedFormat ? 'mp4' : mimeType.split('/')[1].split(';')[0];
 
         audioChunksRef.current = [];
-
-        mediaRecorderRef.current.ondataavailable = event => {
-            audioChunksRef.current.push(event.data);
-        };
-
+        mediaRecorderRef.current.ondataavailable = event => audioChunksRef.current.push(event.data);
         mediaRecorderRef.current.onstop = () => {
             const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
             const audioUrl = URL.createObjectURL(audioBlob);
@@ -610,12 +586,7 @@ export default function ChatPage() {
         setIsRecording(true);
     } catch (err) {
         isPermissionPromptOpen.current = false;
-        console.error("Error accessing microphone:", err);
-        toast({
-            title: "Microphone Error",
-            description: "Could not access microphone. Please check permissions.",
-            variant: "destructive",
-        });
+        toast({ title: "Microphone Error", description: "Could not access microphone.", variant: "destructive" });
     }
   };
 
@@ -623,9 +594,16 @@ export default function ChatPage() {
       if (mediaRecorderRef.current && isRecording) {
           mediaRecorderRef.current.stop();
           setIsRecording(false);
-          // Stop all tracks on the stream to release the microphone
           mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       }
+  };
+
+  const getThumbnailSrc = (item: Message) => {
+    if (item.thumbnailUrl) return item.thumbnailUrl;
+    if (item.imageUrl) {
+        return item.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
+    }
+    return '';
   };
 
   return (
@@ -725,13 +703,24 @@ export default function ChatPage() {
                                   </a>
                               )}
                               {message.imageUrl && (
-                                <div className="mb-2">
-                                  <Image src={message.thumbnailUrl || message.imageUrl} alt="Attached image" width={300} height={300} className="max-w-full h-auto rounded-md" />
+                                <div className="mb-2" onClick={(e) => { e.stopPropagation(); setViewingMedia(message); }}>
+                                  <Image 
+                                    src={getThumbnailSrc(message) || message.imageUrl} 
+                                    alt="Attached image" 
+                                    width={300} 
+                                    height={300} 
+                                    className="max-w-full h-auto rounded-md hover:opacity-90 transition-opacity" 
+                                  />
                                 </div>
                               )}
                               {message.videoUrl && (
-                                <div className="mb-2">
-                                  <video src={message.videoUrl} controls className="max-w-full h-auto rounded-md" />
+                                <div className="mb-2" onClick={(e) => { e.stopPropagation(); setViewingMedia(message); }}>
+                                  <div className="relative cursor-pointer group">
+                                    <video src={message.videoUrl} preload="metadata" className="max-w-full h-auto rounded-md" />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors rounded-md">
+                                        <Video className="h-8 w-8 text-white opacity-70" />
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                               {message.audioUrl && (
@@ -860,6 +849,53 @@ export default function ChatPage() {
           </div>
         </footer>
       </div>
+
+      <Dialog open={!!viewingMedia} onOpenChange={() => setViewingMedia(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-black/95">
+          <DialogHeader className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
+            <DialogTitle className="text-white font-medium flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm">Shared by {viewingMedia?.sender}</span>
+                <span className="text-[10px] opacity-70">
+                  {viewingMedia?.createdAt && format(viewingMedia.createdAt.toDate(), "MMMM d, yyyy 'at' h:mm a")}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {viewingMedia && (viewingMedia.imageUrl || viewingMedia.videoUrl || viewingMedia.audioUrl) && (
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
+                    <a href={viewingMedia.imageUrl || viewingMedia.videoUrl || viewingMedia.audioUrl} download target="_blank">
+                      <Download className="h-4 w-4" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center min-h-[50vh] max-h-[85vh] p-2 pt-16">
+            {viewingMedia?.imageUrl && (
+              <div className="relative w-full h-full min-h-[400px]">
+                <Image
+                  src={viewingMedia.imageUrl}
+                  alt="Full resolution"
+                  fill
+                  className="object-contain"
+                  sizes="100vw"
+                  priority
+                />
+              </div>
+            )}
+            {viewingMedia?.videoUrl && (
+              <video
+                src={viewingMedia.videoUrl}
+                controls
+                autoPlay
+                className="max-w-full max-h-[80vh] rounded-md"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog
         open={!!deletingMessageId}
         onOpenChange={(open) => !open && setDeletingMessageId(null)}
@@ -868,8 +904,7 @@ export default function ChatPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the
-              message.
+              This action cannot be undone. This will permanently delete the message.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

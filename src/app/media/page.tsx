@@ -65,6 +65,22 @@ export default function MediaPage() {
 
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
+  /**
+   * Helper to derive the thumbnail URL if available.
+   * Your Firebase Function creates thumbnails in 'chat_images_thumbnail' with the same name.
+   * If 'thumbnailUrl' field is present in the doc, we use it. 
+   * Otherwise, we try to derive it from 'imageUrl' by replacing the folder.
+   */
+  const getThumbnailSrc = (item: Message) => {
+    if (item.thumbnailUrl) return item.thumbnailUrl;
+    if (item.imageUrl) {
+        // This is a naive derivation that assumes standard Firebase Storage URL structure.
+        // It's safer to rely on the thumbnailUrl field updated by your function.
+        return item.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
+    }
+    return '';
+  };
+
   const fetchMedia = useCallback(async (mediaType: MediaTab, lastVisible: QueryDocumentSnapshot | null = null) => {
     if (!db || !currentUserObject) return;
 
@@ -173,9 +189,9 @@ export default function MediaPage() {
             {items.map((item) => (
               <Link href={`/chat#${item.id}`} key={item.id}>
                 <Card className="group cursor-pointer overflow-hidden aspect-square relative hover:bg-muted/50 transition-colors">
-                  {type === 'images' && item.imageUrl && (
+                  {type === 'images' && (item.imageUrl || item.thumbnailUrl) && (
                     <Image
-                      src={item.imageUrl}
+                      src={getThumbnailSrc(item) || item.imageUrl || ''}
                       alt={`Shared by ${item.sender}`}
                       fill
                       className="object-cover transition-transform group-hover:scale-105"

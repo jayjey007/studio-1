@@ -41,6 +41,7 @@ export interface Message {
   replyingToText?: string;
   replyingToSender?: string;
   imageUrl?: string;
+  thumbnailUrl?: string; // New field for generated thumbnails
   videoUrl?: string;
   audioUrl?: string;
   fileName?: string;
@@ -725,7 +726,7 @@ export default function ChatPage() {
                               )}
                               {message.imageUrl && (
                                 <div className="mb-2">
-                                  <Image src={message.imageUrl} alt="Attached image" width={300} height={300} className="max-w-full h-auto rounded-md" />
+                                  <Image src={message.thumbnailUrl || message.imageUrl} alt="Attached image" width={300} height={300} className="max-w-full h-auto rounded-md" />
                                 </div>
                               )}
                               {message.videoUrl && (

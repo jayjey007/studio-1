@@ -168,9 +168,15 @@ export default function FavoritesPage() {
                         </div>
                       </CardHeader>
                       <CardContent>
-                        {message.imageUrl && (
+                        {(message.imageUrl || message.thumbnailUrl) && (
                           <div className="mb-2">
-                            <Image src={message.imageUrl} alt="Attached image" width={150} height={150} className="max-w-full h-auto rounded-md" />
+                            <Image 
+                                src={message.thumbnailUrl || message.imageUrl || ''} 
+                                alt="Attached image" 
+                                width={150} 
+                                height={150} 
+                                className="max-w-full h-auto rounded-md" 
+                            />
                           </div>
                         )}
                         {message.videoUrl && (

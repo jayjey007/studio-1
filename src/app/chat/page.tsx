@@ -711,14 +711,14 @@ export default function ChatPage() {
         <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-black/95 sm:rounded-none">
           <DialogHeader className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
             <DialogTitle className="text-white font-medium flex items-center justify-between text-sm">
-              <div className="flex flex-col">
-                <span>Shared by {viewingMedia?.sender}</span>
-                <span className="text-[10px] opacity-60">{viewingMedia?.createdAt && format(viewingMedia.createdAt.toDate(), "MMM d, yyyy h:mm a")}</span>
-              </div>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-8 w-8" asChild>
                   <a href={viewingMedia?.imageUrl || viewingMedia?.videoUrl} download target="_blank"><Download className="h-4 w-4" /></a>
                 </Button>
+              </div>
+              <div className="flex flex-col text-right">
+                <span>Shared by {viewingMedia?.sender}</span>
+                <span className="text-[10px] opacity-60">{viewingMedia?.createdAt && format(viewingMedia.createdAt.toDate(), "MMM d, yyyy h:mm a")}</span>
               </div>
             </DialogTitle>
           </DialogHeader>

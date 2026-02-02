@@ -238,12 +238,6 @@ export default function FavoritesPage() {
         <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-black/95">
           <DialogHeader className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
             <DialogTitle className="text-white font-medium flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <span className="text-sm">Shared by {viewingMedia?.sender}</span>
-                <span className="text-[10px] opacity-70">
-                  {viewingMedia?.createdAt && format(viewingMedia.createdAt.toDate(), "MMMM d, yyyy 'at' h:mm a")}
-                </span>
-              </div>
               <div className="flex items-center gap-2">
                 {viewingMedia && (viewingMedia.imageUrl || viewingMedia.videoUrl) && (
                   <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
@@ -252,6 +246,12 @@ export default function FavoritesPage() {
                     </a>
                   </Button>
                 )}
+              </div>
+              <div className="flex flex-col gap-1 text-right">
+                <span className="text-sm">Shared by {viewingMedia?.sender}</span>
+                <span className="text-[10px] opacity-70">
+                  {viewingMedia?.createdAt && format(viewingMedia.createdAt.toDate(), "MMMM d, yyyy 'at' h:mm a")}
+                </span>
               </div>
             </DialogTitle>
           </DialogHeader>

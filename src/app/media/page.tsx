@@ -276,18 +276,7 @@ export default function MediaPage() {
         <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-black/95">
           <DialogHeader className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
             <DialogTitle className="text-white font-medium flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <span className="text-sm">Shared by {selectedMedia?.sender}</span>
-                <span className="text-[10px] opacity-70">
-                  {selectedMedia?.createdAt && format(selectedMedia.createdAt.toDate(), "MMMM d, yyyy 'at' h:mm a")}
-                </span>
-              </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
-                  <Link href={`/chat#${selectedMedia?.id}`}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Link>
-                </Button>
                 {selectedMedia && (selectedMedia.imageUrl || selectedMedia.videoUrl || selectedMedia.audioUrl) && (
                   <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
                     <a href={selectedMedia.imageUrl || selectedMedia.videoUrl || selectedMedia.audioUrl} download target="_blank">
@@ -295,6 +284,17 @@ export default function MediaPage() {
                     </a>
                   </Button>
                 )}
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
+                  <Link href={`/chat#${selectedMedia?.id}`}>
+                    <ExternalLink className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+              <div className="flex flex-col gap-1 text-right">
+                <span className="text-sm">Shared by {selectedMedia?.sender}</span>
+                <span className="text-[10px] opacity-70">
+                  {selectedMedia?.createdAt && format(selectedMedia.createdAt.toDate(), "MMMM d, yyyy 'at' h:mm a")}
+                </span>
               </div>
             </DialogTitle>
           </DialogHeader>

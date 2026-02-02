@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/AlertDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, X, Trash2, MessageSquareReply, Paperclip, LogOut, Bell, MoreVertical, Star, Heart, ListPlus, BookText, Mic, StopCircle, Video, GalleryVertical, Download } from "lucide-react";
@@ -139,14 +139,15 @@ const ThumbnailImage = ({ message, className }: { message: Message, className?: 
   if (!src) return null;
 
   return (
-    <Image 
-      src={src} 
-      alt="Attached image" 
-      width={300} 
-      height={300} 
-      className={cn("max-w-full h-auto rounded-md hover:opacity-90 transition-opacity", className)}
-      onError={handleError}
-    />
+    <div className="relative aspect-square w-full max-w-[300px] overflow-hidden rounded-md bg-muted">
+      <Image 
+        src={src} 
+        alt="Attached image" 
+        fill
+        className={cn("object-cover hover:opacity-90 transition-opacity", className)}
+        onError={handleError}
+      />
+    </div>
   );
 };
 
@@ -217,8 +218,12 @@ export default function ChatPage() {
         shouldScrollToBottomRef.current = false;
       } else {
          const newScrollHeight = viewport.scrollHeight;
-        if (newScrollHeight > prevScrollHeightRef.current && !atBottomRef.current) {
-          viewport.scrollTop += newScrollHeight - prevScrollHeightRef.current;
+        if (newScrollHeight > prevScrollHeightRef.current) {
+           // This logic is primarily for when messages are prepended at the top
+           // We don't want to jump down if the user is scrolling up to see old messages
+           if (!atBottomRef.current) {
+              viewport.scrollTop += newScrollHeight - prevScrollHeightRef.current;
+           }
         }
       }
       prevScrollHeightRef.current = viewport.scrollHeight;
@@ -240,12 +245,11 @@ export default function ChatPage() {
           newMessages.forEach(m => messageMap.set(m.id, m));
           const updatedMessages = Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
 
-          if (isLoading) {
+          // If we were at the bottom before, or this is initial load, we should scroll down
+          if (isLoading || (atBottomRef.current && updatedMessages.length > prevMessages.length)) {
             shouldScrollToBottomRef.current = true;
           } else {
-            if(updatedMessages.length > prevMessages.length && atBottomRef.current) {
-                shouldScrollToBottomRef.current = true;
-            }
+            shouldScrollToBottomRef.current = false;
           }
 
           return updatedMessages;
@@ -268,7 +272,6 @@ export default function ChatPage() {
       if (!messagesCollectionRef || !hasMore || isLoadingMore || !lastVisible) return;
       
       setIsLoadingMore(true);
-      atBottomRef.current = false;
       
       const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
 
@@ -278,8 +281,15 @@ export default function ChatPage() {
           
           if (documentSnapshots.docs.length > 0) {
             const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+            
+            // When loading more, we definitely don't want to snap to bottom
             shouldScrollToBottomRef.current = false;
-            setMessages(prev => [...newMessages, ...prev]);
+            
+            setMessages(prev => {
+                // Prepend new messages
+                const messageMap = new Map([...newMessages, ...prev].map(m => [m.id, m]));
+                return Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+            });
             setLastVisible(newLastVisible);
           }
           
@@ -420,6 +430,7 @@ export default function ChatPage() {
     if (!currentUser || !db || !storage || !currentUserObject) return;
 
     setIsSending(true);
+    // User sent a message, we definitely want to scroll to bottom
     shouldScrollToBottomRef.current = true;
 
     const recipientUser = ALL_USERS.find(u => u.username !== currentUser);
@@ -576,11 +587,12 @@ export default function ChatPage() {
     }
   };
 
-  const handleScroll = () => {
-    const viewport = viewportRef.current;
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const viewport = e.currentTarget;
     if (viewport) {
       const { scrollTop, scrollHeight, clientHeight } = viewport;
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 1;
+      // Allow a small margin for error (1px)
+      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 5;
       atBottomRef.current = isAtBottom;
     }
   };
@@ -728,8 +740,8 @@ export default function ChatPage() {
                               )}
                               {message.videoUrl && (
                                 <div className="mb-2" onClick={(e) => { e.stopPropagation(); setViewingMedia(message); }}>
-                                  <div className="relative cursor-pointer group">
-                                    <video src={message.videoUrl} preload="metadata" className="max-w-full h-auto rounded-md" />
+                                  <div className="relative aspect-video w-full max-w-[300px] cursor-pointer group bg-muted rounded-md overflow-hidden">
+                                    <video src={message.videoUrl} preload="metadata" className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors rounded-md">
                                         <Video className="h-8 w-8 text-white opacity-70" />
                                     </div>
@@ -788,7 +800,7 @@ export default function ChatPage() {
             )}
              {mediaPreview && (
               <div className="relative rounded-t-lg bg-muted/50 p-2 flex items-center gap-2">
-                {mediaType === 'image' && <Image src={mediaPreview} alt="Image preview" width={80} height={80} className="h-20 w-20 rounded-md object-cover" />}
+                {mediaType === 'image' && <div className="relative h-20 w-20"><Image src={mediaPreview} alt="Image preview" fill className="rounded-md object-cover" /></div>}
                 {mediaType === 'video' && <video src={mediaPreview} className="h-20 w-auto rounded-md" />}
                 {mediaType === 'audio' && <audio src={mediaPreview} controls className="h-10 w-full" />}
                 <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={cancelMediaPreview}>

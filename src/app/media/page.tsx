@@ -9,10 +9,11 @@ import { collection, query, where, orderBy, getDocs, Timestamp, or, limit, start
 import { useFirebase } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ArrowLeft, Image as ImageIcon, Video, Music, LogOut } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Loader2, ArrowLeft, Image as ImageIcon, Video, Music, LogOut, ExternalLink, Download } from "lucide-react";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Message } from "../chat/page";
 
 const ALL_USERS = [
@@ -45,6 +46,8 @@ export default function MediaPage() {
   const [hasMoreVideos, setHasMoreVideos] = useState(true);
   const [hasMoreAudios, setHasMoreAudios] = useState(true);
 
+  const [selectedMedia, setSelectedMedia] = useState<Message | null>(null);
+
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,17 +68,9 @@ export default function MediaPage() {
 
   const currentUserObject = useMemo(() => ALL_USERS.find(u => u.username === currentUser), [currentUser]);
 
-  /**
-   * Helper to derive the thumbnail URL if available.
-   * Your Firebase Function creates thumbnails in 'chat_images_thumbnail' with the same name.
-   * If 'thumbnailUrl' field is present in the doc, we use it. 
-   * Otherwise, we try to derive it from 'imageUrl' by replacing the folder.
-   */
   const getThumbnailSrc = (item: Message) => {
     if (item.thumbnailUrl) return item.thumbnailUrl;
     if (item.imageUrl) {
-        // This is a naive derivation that assumes standard Firebase Storage URL structure.
-        // It's safer to rely on the thumbnailUrl field updated by your function.
         return item.imageUrl.replace('/chat_images%2F', '/chat_images_thumbnail%2F');
     }
     return '';
@@ -126,7 +121,6 @@ export default function MediaPage() {
     }
   }, [db, currentUserObject]);
   
-  // Initial fetch for the first tab
   useEffect(() => {
     if(currentUserObject) {
       fetchMedia('images');
@@ -136,7 +130,6 @@ export default function MediaPage() {
   const handleTabChange = (value: string) => {
     const newTab = value as MediaTab;
     setActiveTab(newTab);
-    // Fetch data for the new tab only if it hasn't been fetched before
     if (newTab === 'videos' && videoItems.length === 0) fetchMedia('videos');
     if (newTab === 'audios' && audioItems.length === 0) fetchMedia('audios');
   };
@@ -152,29 +145,13 @@ export default function MediaPage() {
   }, [activeTab, hasMoreImages, hasMoreVideos, hasMoreAudios, isLoadingMore, fetchMedia, lastVisibleImage, lastVisibleVideo, lastVisibleAudio]);
 
   useEffect(() => {
-      const options = {
-          root: null,
-          rootMargin: '0px',
-          threshold: 1.0,
-      };
-
+      const options = { root: null, rootMargin: '0px', threshold: 1.0 };
       observerRef.current = new IntersectionObserver((entries) => {
-          if (entries[0].isIntersecting) {
-              loadMoreMedia();
-          }
+          if (entries[0].isIntersecting) loadMoreMedia();
       }, options);
-
-      if (loadMoreRef.current) {
-          observerRef.current.observe(loadMoreRef.current);
-      }
-
-      return () => {
-          if (observerRef.current && loadMoreRef.current) {
-              observerRef.current.unobserve(loadMoreRef.current);
-          }
-      };
+      if (loadMoreRef.current) observerRef.current.observe(loadMoreRef.current);
+      return () => observerRef.current?.disconnect();
   }, [loadMoreMedia]);
-
 
   const renderMediaGrid = (items: Message[], type: MediaTab) => {
     const hasMore = type === 'images' ? hasMoreImages : type === 'videos' ? hasMoreVideos : hasMoreAudios;
@@ -187,45 +164,46 @@ export default function MediaPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
             {items.map((item) => (
-              <Link href={`/chat#${item.id}`} key={item.id}>
-                <Card className="group cursor-pointer overflow-hidden aspect-square relative hover:bg-muted/50 transition-colors">
-                  {type === 'images' && (item.imageUrl || item.thumbnailUrl) && (
-                    <Image
-                      src={getThumbnailSrc(item) || item.imageUrl || ''}
-                      alt={`Shared by ${item.sender}`}
-                      fill
-                      className="object-cover transition-transform group-hover:scale-105"
-                    />
-                  )}
-                  {type === 'videos' && item.videoUrl && (
+              <Card 
+                key={item.id} 
+                className="group cursor-pointer overflow-hidden aspect-square relative hover:bg-muted/50 transition-colors"
+                onClick={() => setSelectedMedia(item)}
+              >
+                {type === 'images' && (item.imageUrl || item.thumbnailUrl) && (
+                  <Image
+                    src={getThumbnailSrc(item) || item.imageUrl || ''}
+                    alt={`Shared by ${item.sender}`}
+                    fill
+                    className="object-cover transition-transform group-hover:scale-105"
+                  />
+                )}
+                {type === 'videos' && item.videoUrl && (
+                  <div className="relative w-full h-full">
                     <video
                       src={item.videoUrl}
                       preload="metadata"
-                      controls
                       className="w-full h-full object-cover"
                     />
-                  )}
-                  {type === 'audios' && (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-muted p-2">
-                       <Music className="h-1/2 w-1/2 text-muted-foreground" />
-                       {item.fileName && <p className="text-xs text-center text-muted-foreground mt-2 truncate">{item.fileName}</p>}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <Video className="h-8 w-8 text-white opacity-70" />
                     </div>
-                  )}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-white text-xs pointer-events-none">
-                    <p className="font-semibold">{item.sender}</p>
-                    <p>{item.createdAt && format(item.createdAt.toDate(), "MMM d, yyyy")}</p>
                   </div>
-                   <div className="absolute top-1 right-1 bg-black/50 rounded-full p-1 pointer-events-none">
-                      {type === 'images' && <ImageIcon className="h-3 w-3 text-white" />}
-                      {type === 'videos' && <Video className="h-3 w-3 text-white" />}
-                      {type === 'audios' && <Music className="h-3 w-3 text-white" />}
-                   </div>
-                </Card>
-              </Link>
+                )}
+                {type === 'audios' && (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-muted p-2">
+                     <Music className="h-1/2 w-1/2 text-muted-foreground" />
+                     {item.fileName && <p className="text-xs text-center text-muted-foreground mt-2 truncate w-full">{item.fileName}</p>}
+                  </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-white text-[10px] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  <p className="font-semibold truncate">{item.sender}</p>
+                  <p>{item.createdAt && format(item.createdAt.toDate(), "MMM d")}</p>
+                </div>
+              </Card>
             ))}
           </div>
         )}
-        <div ref={loadMoreRef} className="h-10 w-full flex justify-center items-center">
+        <div ref={loadMoreRef} className="h-10 w-full flex justify-center items-center mt-4">
           {isLoadingMore && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
           {!isLoadingMore && !hasMore && items.length > 0 && <p className="text-sm text-muted-foreground">End of results.</p>}
         </div>
@@ -277,6 +255,64 @@ export default function MediaPage() {
             </ScrollArea>
         </main>
       </Tabs>
+
+      <Dialog open={!!selectedMedia} onOpenChange={() => setSelectedMedia(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-black/95">
+          <DialogHeader className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
+            <DialogTitle className="text-white font-medium flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm">Shared by {selectedMedia?.sender}</span>
+                <span className="text-[10px] opacity-70">
+                  {selectedMedia?.createdAt && format(selectedMedia.createdAt.toDate(), "MMMM d, yyyy 'at' h:mm a")}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
+                  <Link href={`/chat#${selectedMedia?.id}`}>
+                    <ExternalLink className="h-4 w-4" />
+                  </Link>
+                </Button>
+                {selectedMedia && (selectedMedia.imageUrl || selectedMedia.videoUrl || selectedMedia.audioUrl) && (
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" asChild>
+                    <a href={selectedMedia.imageUrl || selectedMedia.videoUrl || selectedMedia.audioUrl} download target="_blank">
+                      <Download className="h-4 w-4" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center min-h-[50vh] max-h-[85vh] p-2 pt-16">
+            {selectedMedia?.imageUrl && (
+              <div className="relative w-full h-full min-h-[400px]">
+                <Image
+                  src={selectedMedia.imageUrl}
+                  alt="Full resolution"
+                  fill
+                  className="object-contain"
+                  sizes="100vw"
+                  priority
+                />
+              </div>
+            )}
+            {selectedMedia?.videoUrl && (
+              <video
+                src={selectedMedia.videoUrl}
+                controls
+                autoPlay
+                className="max-w-full max-h-[80vh] rounded-md"
+              />
+            )}
+            {selectedMedia?.audioUrl && (
+              <div className="w-full max-w-md p-8 bg-card rounded-lg flex flex-col items-center gap-4">
+                <Music className="h-12 w-12 text-primary" />
+                <p className="text-center font-medium">{selectedMedia.fileName || 'Audio Message'}</p>
+                <audio src={selectedMedia.audioUrl} controls className="w-full" />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
        <footer className="shrink-0 border-t bg-card p-2 md:p-4">
         <div className="flex items-center justify-end">

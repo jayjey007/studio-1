@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,7 +20,8 @@ const ScrollArea = React.forwardRef<
     <ScrollAreaPrimitive.Viewport
       ref={viewportRef}
       onScroll={onScroll}
-      className="h-full w-full rounded-[inherit]"
+      className="h-full w-full rounded-[inherit] scroll-smooth"
+      style={{ overflowAnchor: 'auto' }}
     >
       {children}
     </ScrollAreaPrimitive.Viewport>

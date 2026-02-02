@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
@@ -224,7 +225,6 @@ export default function ChatPage() {
         viewport.scrollTop = viewport.scrollHeight;
         shouldScrollToBottomRef.current = false;
     } else if (prevScrollHeightRef.current > 0 && !atBottomRef.current) {
-        // Handle loading more: maintain position relative to top
         const diff = viewport.scrollHeight - prevScrollHeightRef.current;
         if (diff > 0) {
             viewport.scrollTop += diff;
@@ -247,7 +247,6 @@ export default function ChatPage() {
           newMessages.forEach(m => messageMap.set(m.id, m));
           const updatedMessages = Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
 
-          // Logic to decide whether to snap to bottom
           const isInitialLoad = prevMessages.length === 0;
           const userSentMessage = updatedMessages.length > prevMessages.length && updatedMessages[updatedMessages.length - 1].sender === currentUser;
           

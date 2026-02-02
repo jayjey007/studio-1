@@ -203,7 +203,7 @@ export default function ChatPage() {
   useEffect(() => {
     const today = new Date();
     const currentYear = today.getFullYear();
-    let targetDate = new Date(currentYear, 11, 11);
+    let targetDate = new Date(currentYear, 5, 26); // June 26
     if (today > targetDate) targetDate.setFullYear(currentYear + 1);
     setDaysUntil(differenceInCalendarDays(targetDate, today));
   }, []);

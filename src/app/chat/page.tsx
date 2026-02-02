@@ -573,6 +573,9 @@ export default function ChatPage() {
           )}
         </div>
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Logout">
+              <LogOut className="h-5 w-5" />
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">

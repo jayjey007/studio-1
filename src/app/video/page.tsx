@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase/provider';
 import { VideoChat } from '@/components/VideoChat';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { User } from 'firebase/auth';
 
@@ -47,6 +47,12 @@ export default function VideoPage() {
         }
     }, [router, auth]);
 
+    const handleLogout = () => {
+        sessionStorage.removeItem("isAuthenticated");
+        sessionStorage.removeItem("currentUser");
+        router.replace("/");
+    };
+
     if (!currentUser || !firestore) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -63,7 +69,9 @@ export default function VideoPage() {
                     <span className="sr-only">Back</span>
                 </Button>
                 <h1 className="flex-1 text-xl font-semibold">Video Call</h1>
-                 <div className="w-9" />
+                 <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Logout" className="hover:bg-white/20">
+                    <LogOut className="h-5 w-5" />
+                 </Button>
             </header>
             <main className="flex-1 flex flex-col items-center justify-center">
                 <VideoChat firestore={firestore} callId={CALL_ID} currentUser={currentUser} />

@@ -216,6 +216,7 @@ export default function ChatPage() {
     }
   }, []);
 
+  // Handle scroll position maintenance
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -224,6 +225,8 @@ export default function ChatPage() {
         viewport.scrollTop = viewport.scrollHeight;
         shouldScrollToBottomRef.current = false;
     } else if (prevScrollHeightRef.current > 0 && !atBottomRef.current) {
+        // If we were NOT at the bottom (scrolling up), 
+        // adjust the scroll position so the content doesn't jump when older messages load.
         const diff = viewport.scrollHeight - prevScrollHeightRef.current;
         if (diff > 0) {
             viewport.scrollTop += diff;
@@ -246,8 +249,10 @@ export default function ChatPage() {
           newMessages.forEach(m => messageMap.set(m.id, m));
           const updatedMessages = Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
 
+          // Determine if we should snap to bottom
           const isInitialLoad = prevMessages.length === 0;
-          const userSentMessage = updatedMessages.length > prevMessages.length && updatedMessages[updatedMessages.length - 1].sender === currentUser;
+          const lastMessage = updatedMessages[updatedMessages.length - 1];
+          const userSentMessage = lastMessage?.sender === currentUser && updatedMessages.length > prevMessages.length;
           
           if (isInitialLoad || userSentMessage || atBottomRef.current) {
             shouldScrollToBottomRef.current = true;
@@ -275,6 +280,11 @@ export default function ChatPage() {
       if (!messagesCollectionRef || !hasMore || isLoadingMore || !lastVisible) return;
       
       setIsLoadingMore(true);
+      const viewport = viewportRef.current;
+      if (viewport) {
+          prevScrollHeightRef.current = viewport.scrollHeight;
+      }
+      
       const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
 
       try {
@@ -283,7 +293,7 @@ export default function ChatPage() {
           
           if (documentSnapshots.docs.length > 0) {
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            shouldScrollToBottomRef.current = false;
+            shouldScrollToBottomRef.current = false; // Never jump to bottom when loading history
             
             setMessages(prev => {
                 const messageMap = new Map([...newMessages, ...prev].map(m => [m.id, m]));

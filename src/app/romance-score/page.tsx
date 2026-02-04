@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, ArrowLeft, Heart, Sparkles, TrendingUp, Info, User, Activity } from "lucide-react";
 import { analyzeRomance, type AnalyzeRomanceOutput } from "@/ai/flows/analyze-romance";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 const ALL_USERS = [
     { username: 'Crazy', uid: 'QYTCCLfLg1gxdLLQy34y0T2Pz3g2' },
@@ -120,7 +120,7 @@ export default function RomanceScorePage() {
               ) : (
                 <>
                   <Sparkles className="mr-2 h-5 w-5" />
-                  Calculate Overall Score
+                  Calculate the Vibe
                 </>
               )}
             </Button>

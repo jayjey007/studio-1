@@ -8,22 +8,22 @@ service cloud.firestore {
       allow update: if request.auth.uid == userId;
     }
 
+    // Following the prototype design, data is public to facilitate 
+    // easy reading and writing for a two-user scenario and server-side analysis.
     match /messages/{messageId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
     match /fcmTokens/{tokenId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
     
     match /letter/{entryId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.authorUsername == request.auth.token.name;
+      allow read, write: if true;
     }
 
     match /bucketList/{itemId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
     match /videoCalls/{callId} {
@@ -39,8 +39,7 @@ service cloud.firestore {
 
     match /videoCalls/{callId}/recipientCandidates/{candidateId} {
       allow read: if request.auth != null && get(/databases/$(database)/documents/videoCalls/$(callId)).data.initiatorUid == request.auth.uid;
-      create: if request.auth != null && get(/databases/$(database)/documents/videoCalls/$(callId)).data.recipientUid == request.auth.uid;
+      allow create: if request.auth != null && get(/databases/$(database)/documents/videoCalls/$(callId)).data.recipientUid == request.auth.uid;
     }
   }
 }
-

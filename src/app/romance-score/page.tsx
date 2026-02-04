@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -50,8 +51,8 @@ export default function RomanceScorePage() {
     setResult(null);
 
     try {
-      // Fetch a larger history (250 messages) for a more accurate "overall" score
-      const q = query(collection(db, "messages"), orderBy("createdAt", "desc"), limit(250));
+      // Fetch a larger history (500 messages) for a more accurate "overall" score
+      const q = query(collection(db, "messages"), orderBy("createdAt", "desc"), limit(500));
       const querySnapshot = await getDocs(q);
       const messagesData = querySnapshot.docs
         .map(doc => {
@@ -237,7 +238,7 @@ export default function RomanceScorePage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      This calculation analyzes up to 250 recent messages to determine your shared "Romance Score." It considers sentiment, responsiveness, and affection expressed by both users. Run this scan regularly to see how your connection evolves!
+                      This calculation analyzes up to 500 recent messages to determine your shared "Romance Score." It considers sentiment, responsiveness, and affection expressed by both users. Run this scan regularly to see how your connection evolves!
                     </p>
                   </CardContent>
                 </Card>

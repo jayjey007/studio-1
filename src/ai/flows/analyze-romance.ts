@@ -44,14 +44,14 @@ const analyzeRomancePrompt = ai.definePrompt({
   
   You will be provided with a list of messages from a private chat between two people. 
   
-  Analyze the messages for:
+  Analyze the entire conversation for:
   - Affection and intimacy levels
   - Frequency of shared jokes or positive interactions
   - Emotional support and empathy
   - Overall tone (playful, serious, distant, passionate)
   
   Please provide:
-  1. An overall relationship score (0-100).
+  1. An overall relationship health score (0-100) representing the collective bond.
   2. Individual romantic sentiment scores for EACH sender based on how they express affection and engage in the relationship.
   3. A vibe description and a few highlights.
 

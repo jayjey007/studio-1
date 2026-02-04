@@ -2,10 +2,26 @@
 
 /**
  * @fileOverview Genkit flow to analyze romantic sentiment between users based on chat history.
+ * Performs data fetching on the server using Admin SDK for better performance and security.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { initializeAdminApp } from '@/firebase/admin-app';
+
+const decodeMessage = (text: string, shift: number = 1): string => {
+  if (!text) return '';
+  return text
+    .split('')
+    .map(char => {
+      const charCode = char.charCodeAt(0);
+      if (charCode >= 32 + shift && charCode <= 126 + shift) {
+        return String.fromCharCode(charCode - shift);
+      }
+      return char;
+    })
+    .join('');
+};
 
 const AnalyzeRomanceInputSchema = z.object({
   messages: z.array(z.object({
@@ -31,6 +47,43 @@ const AnalyzeRomanceOutputSchema = z.object({
 });
 
 export type AnalyzeRomanceOutput = z.infer<typeof AnalyzeRomanceOutputSchema>;
+
+/**
+ * Server Action to calculate the romance score.
+ * Fetches 500 messages directly on the server to avoid client-side overhead.
+ */
+export async function calculateOverallRomanceScore(): Promise<AnalyzeRomanceOutput> {
+  const admin = await initializeAdminApp();
+  if (!admin) throw new Error("Could not initialize server-side services.");
+
+  // Fetch 500 most recent messages
+  const snapshot = await admin.firestore
+    .collection('messages')
+    .orderBy('createdAt', 'desc')
+    .limit(500)
+    .get();
+
+  if (snapshot.empty) {
+    throw new Error("No message history found. Start chatting to get a score!");
+  }
+
+  const messagesData = snapshot.docs
+    .map(doc => {
+      const data = doc.data();
+      return {
+        text: data.isEncoded ? decodeMessage(data.scrambledText) : data.scrambledText,
+        sender: data.sender as string
+      };
+    })
+    .filter(m => !!m.text && m.text.trim().length > 0)
+    .reverse(); // Chronological order for better AI context
+
+  if (messagesData.length < 5) {
+    throw new Error("Not enough messages for a meaningful analysis. Keep chatting!");
+  }
+
+  return analyzeRomanceFlow({ messages: messagesData });
+}
 
 export async function analyzeRomance(input: AnalyzeRomanceInput): Promise<AnalyzeRomanceOutput> {
   return analyzeRomanceFlow(input);

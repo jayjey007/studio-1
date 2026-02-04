@@ -1,37 +1,17 @@
-
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
-import { useFirebase } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, ArrowLeft, Heart, Sparkles, TrendingUp, Info, User, Activity } from "lucide-react";
-import { analyzeRomance, type AnalyzeRomanceOutput } from "@/ai/flows/analyze-romance";
+import { calculateOverallRomanceScore, type AnalyzeRomanceOutput } from "@/ai/flows/analyze-romance";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
-const ALL_USERS = [
-    { username: 'Crazy', uid: 'QYTCCLfLg1gxdLLQy34y0T2Pz3g2' },
-    { username: 'Cool', uid: 'N2911Sj2g8cT03s5v31s1p9V8s22' }
-];
-
-const decodeMessage = (text: string, shift: number = 1): string => {
-  return text
-    .split('')
-    .map(char => {
-      const charCode = char.charCodeAt(0);
-       if (charCode >= 32 + shift && charCode <= 126 + shift) {
-        return String.fromCharCode(charCode - shift);
-      }
-      return char;
-    })
-    .join('');
-};
+const COLORS = ["#ff2e63", "#252a34"];
 
 export default function RomanceScorePage() {
   const router = useRouter();
-  const { firestore: db } = useFirebase();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalyzeRomanceOutput | null>(null);
@@ -46,31 +26,12 @@ export default function RomanceScorePage() {
   }, [router]);
 
   const handleAnalyze = async () => {
-    if (!db) return;
     setIsAnalyzing(true);
     setResult(null);
 
     try {
-      // Fetch a larger history (500 messages) for a more accurate "overall" score
-      const q = query(collection(db, "messages"), orderBy("createdAt", "desc"), limit(500));
-      const querySnapshot = await getDocs(q);
-      const messagesData = querySnapshot.docs
-        .map(doc => {
-            const data = doc.data();
-            return {
-                text: data.isEncoded ? decodeMessage(data.scrambledText) : data.scrambledText,
-                sender: data.sender
-            };
-        })
-        .filter(m => !!m.text && m.text.trim().length > 0)
-        .reverse(); // Analyze in chronological order
-
-      if (messagesData.length < 5) {
-        throw new Error("Not enough message history for a meaningful analysis. Keep chatting!");
-      }
-
-      // Process analysis on the server via Genkit Flow
-      const analysis = await analyzeRomance({ messages: messagesData });
+      // The server-side action now handles the fetching of 500 messages
+      const analysis = await calculateOverallRomanceScore();
       setResult(analysis);
     } catch (error: any) {
       console.error("Analysis failed:", error);
@@ -85,8 +46,6 @@ export default function RomanceScorePage() {
     { name: "Remaining", value: 100 - score },
   ];
 
-  const COLORS = ["#ff2e63", "#252a34"];
-
   return (
     <div className="flex min-h-screen w-full flex-col bg-background">
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
@@ -94,7 +53,7 @@ export default function RomanceScorePage() {
           <ArrowLeft className="h-5 w-5" />
           <span className="sr-only">Back</span>
         </Button>
-        <h1 className="flex-1 text-xl font-semibold">Overall Relationship Score</h1>
+        <h1 className="flex-1 text-xl font-semibold">The Love Lab</h1>
       </header>
 
       <main className="flex-1 overflow-auto p-4 md:p-8">
@@ -103,9 +62,9 @@ export default function RomanceScorePage() {
             <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Activity className="h-8 w-8" />
             </div>
-            <h2 className="text-3xl font-bold tracking-tight">The Love Lab</h2>
+            <h2 className="text-3xl font-bold tracking-tight">Romance Deep Scan</h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Scanning your entire shared history to calculate your deep connection score.
+              We securely analyze your shared history on the server to calculate your deep connection score.
             </p>
             <Button 
               size="lg" 
@@ -116,7 +75,7 @@ export default function RomanceScorePage() {
               {isAnalyzing ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Deep Scanning History...
+                  Analyzing 500 Messages...
                 </>
               ) : (
                 <>
@@ -233,12 +192,12 @@ export default function RomanceScorePage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
                       <Info className="h-4 w-4 text-muted-foreground" />
-                      About this Score
+                      Server-Side Analysis
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      This calculation analyzes up to 500 recent messages to determine your shared "Romance Score." It considers sentiment, responsiveness, and affection expressed by both users. Run this scan regularly to see how your connection evolves!
+                      This calculation analyzes up to 500 recent messages securely on the server. It considers sentiment, responsiveness, and affection expressed by both users. No message data is stored after the analysis is complete.
                     </p>
                   </CardContent>
                 </Card>

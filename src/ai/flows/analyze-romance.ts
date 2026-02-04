@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -56,8 +55,8 @@ export type AnalyzeRomanceOutput = z.infer<typeof AnalyzeRomanceOutputSchema>;
  * Fetches 500 messages directly on the server using the Client SDK.
  */
 export async function calculateOverallRomanceScore(): Promise<AnalyzeRomanceOutput> {
-  // Use the Client SDK for Firestore operations even on the server side
-  // to avoid credential/token refresh issues common with the Admin SDK in this environment.
+  // Now that initializeFirebase is isomorphic (no 'use client'), 
+  // we can safely call it from this server action.
   const { firestore } = initializeFirebase();
 
   try {

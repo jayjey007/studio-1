@@ -209,9 +209,12 @@ export default function ChatPage() {
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     if (viewportRef.current) {
-        viewportRef.current.scrollTo({
-            top: viewportRef.current.scrollHeight,
-            behavior
+        viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+        // Fallback for tricky browsers
+        requestAnimationFrame(() => {
+          if (viewportRef.current) {
+            viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+          }
         });
     }
   }, []);
@@ -224,9 +227,11 @@ export default function ChatPage() {
     if (shouldScrollToBottomRef.current) {
         viewport.scrollTop = viewport.scrollHeight;
         shouldScrollToBottomRef.current = false;
+        // Second pass for mobile settlement
+        setTimeout(() => {
+          if (viewportRef.current) viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+        }, 100);
     } else if (prevScrollHeightRef.current > 0 && !atBottomRef.current) {
-        // If we were NOT at the bottom (scrolling up), 
-        // adjust the scroll position so the content doesn't jump when older messages load.
         const diff = viewport.scrollHeight - prevScrollHeightRef.current;
         if (diff > 0) {
             viewport.scrollTop += diff;
@@ -249,15 +254,12 @@ export default function ChatPage() {
           newMessages.forEach(m => messageMap.set(m.id, m));
           const updatedMessages = Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
 
-          // Determine if we should snap to bottom
           const isInitialLoad = prevMessages.length === 0;
           const lastMessage = updatedMessages[updatedMessages.length - 1];
           const userSentMessage = lastMessage?.sender === currentUser && updatedMessages.length > prevMessages.length;
           
           if (isInitialLoad || userSentMessage || atBottomRef.current) {
             shouldScrollToBottomRef.current = true;
-          } else {
-            shouldScrollToBottomRef.current = false;
           }
 
           return updatedMessages;
@@ -274,7 +276,7 @@ export default function ChatPage() {
     });
 
     return () => unsubscribe();
-  }, [messagesCollectionRef, currentUser]);
+  }, [messagesCollectionRef, currentUser, lastVisible]);
 
   const loadMoreMessages = useCallback(async () => {
       if (!messagesCollectionRef || !hasMore || isLoadingMore || !lastVisible) return;
@@ -293,7 +295,7 @@ export default function ChatPage() {
           
           if (documentSnapshots.docs.length > 0) {
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            shouldScrollToBottomRef.current = false; // Never jump to bottom when loading history
+            shouldScrollToBottomRef.current = false;
             
             setMessages(prev => {
                 const messageMap = new Map([...newMessages, ...prev].map(m => [m.id, m]));
@@ -531,7 +533,7 @@ export default function ChatPage() {
     const viewport = e.currentTarget;
     if (viewport) {
       const { scrollTop, scrollHeight, clientHeight } = viewport;
-      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 20;
+      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 50;
       atBottomRef.current = isAtBottom;
     }
   };
@@ -616,7 +618,9 @@ export default function ChatPage() {
           <ScrollArea className="h-full" viewportRef={viewportRef} onScroll={handleScroll}>
              <div className="px-4 py-6 md:px-6 min-h-full flex flex-col justify-end">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
-                  {hasMore && !isLoading && <div ref={topOfListRef} className="h-4 w-full flex justify-center"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground opacity-30" /></div>}
+                  <div ref={topOfListRef} className="h-4 w-full flex justify-center">
+                    {hasMore && !isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground opacity-30" />}
+                  </div>
                   {messages.map((message) => (
                     <div key={message.id} id={message.id} className={cn("flex w-full", message.sender === currentUser ? "justify-end" : "justify-start")}>
                       <div className="max-w-[85%] group">

@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -8,28 +7,24 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-// Shared decoding logic to match the chat application
-const decodeMessage = (text: string, shift: number = 1): string => {
-  return text
-    .split('')
-    .map(char => {
-      const charCode = char.charCodeAt(0);
-       if (charCode >= 32 + shift && charCode <= 126 + shift) {
-        return String.fromCharCode(charCode - shift);
-      }
-      return char;
-    })
-    .join('');
-};
-
 const AnalyzeRomanceInputSchema = z.object({
-  scrambledMessages: z.array(z.string()).describe('List of scrambled messages to analyze.'),
+  messages: z.array(z.object({
+    text: z.string(),
+    sender: z.string(),
+  })).describe('List of messages with sender information to analyze.'),
 });
 
 export type AnalyzeRomanceInput = z.infer<typeof AnalyzeRomanceInputSchema>;
 
+const UserScoreSchema = z.object({
+  username: z.string(),
+  score: z.number().min(0).max(100),
+  description: z.string().describe('A brief description of this user\'s romantic communication style.'),
+});
+
 const AnalyzeRomanceOutputSchema = z.object({
-  score: z.number().min(0).max(100).describe('The overall romance score from 0 to 100.'),
+  overallScore: z.number().min(0).max(100).describe('The overall romance score from 0 to 100.'),
+  userScores: z.array(UserScoreSchema).describe('Individual analysis for each participant.'),
   summary: z.string().describe('A brief summary of the romantic connection analyzed.'),
   vibe: z.string().describe('A one or two-word description of the relationship vibe.'),
   highlights: z.array(z.string()).describe('Key romantic elements found in the conversation.'),
@@ -47,24 +42,22 @@ const analyzeRomancePrompt = ai.definePrompt({
   output: { schema: AnalyzeRomanceOutputSchema },
   prompt: `You are a relationship expert specializing in analyzing romantic connections through digital communication.
   
-  You will be provided with a list of messages from a private chat between two people. These messages were previously "scrambled" for privacy but have been passed to you as a list of strings.
+  You will be provided with a list of messages from a private chat between two people. 
   
-  Analyze the decoded versions of these messages for:
+  Analyze the messages for:
   - Affection and intimacy levels
   - Frequency of shared jokes or positive interactions
   - Emotional support and empathy
-  - Future planning or shared goals
   - Overall tone (playful, serious, distant, passionate)
   
-  Provide a romance score between 0 and 100. 
-  - 0-30: Distant or strictly functional
-  - 31-60: Friendly with potential or early stage
-  - 61-85: Strong romantic connection
-  - 86-100: Deeply passionate and committed
-  
+  Please provide:
+  1. An overall relationship score (0-100).
+  2. Individual romantic sentiment scores for EACH sender based on how they express affection and engage in the relationship.
+  3. A vibe description and a few highlights.
+
   Messages:
-  {{#each scrambledMessages}}
-  - {{{this}}}
+  {{#each messages}}
+  - [{{{sender}}}] {{{text}}}
   {{/each}}`,
 });
 
@@ -75,13 +68,7 @@ const analyzeRomanceFlow = ai.defineFlow(
     outputSchema: AnalyzeRomanceOutputSchema,
   },
   async (input) => {
-    // Decode the messages before sending to prompt to ensure AI sees clear text
-    const decodedMessages = input.scrambledMessages.map(m => decodeMessage(m));
-    
-    const { output } = await analyzeRomancePrompt({
-      scrambledMessages: decodedMessages // Re-using the schema key but with decoded text
-    });
-    
+    const { output } = await analyzeRomancePrompt(input);
     return output!;
   }
 );

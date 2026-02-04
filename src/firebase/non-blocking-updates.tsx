@@ -1,3 +1,4 @@
+
 'use client';
     
 import {
@@ -22,12 +23,11 @@ export function setDocumentNonBlocking(docRef: DocumentReference, data: any, opt
       'permission-error',
       new FirestorePermissionError({
         path: docRef.path,
-        operation: 'write', // or 'create'/'update' based on options
+        operation: 'write',
         requestResourceData: data,
       })
     )
   })
-  // Execution continues immediately
 }
 
 /**
@@ -41,7 +41,7 @@ export function setDocumentMergeNonBlocking(docRef: DocumentReference, data: any
       'permission-error',
       new FirestorePermissionError({
         path: docRef.path,
-        operation: 'write', // 'set' with merge can be a create or update
+        operation: 'write',
         requestResourceData: data,
       })
     );
@@ -82,7 +82,7 @@ export function updateDocumentNonBlocking(docRef: DocumentReference, data: any) 
         new FirestorePermissionError({
           path: docRef.path,
           operation: 'update',
-          requestResourceData: data + error,
+          requestResourceData: data,
         })
       )
     });

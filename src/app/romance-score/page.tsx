@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -25,18 +25,28 @@ export default function RomanceScorePage() {
     }
   }, [router]);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     sessionStorage.removeItem("isAuthenticated");
     sessionStorage.removeItem("currentUser");
     router.replace("/");
-  };
+  }, [router]);
+
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      handleLogout();
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+    return () => {
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [handleLogout]);
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     setResult(null);
 
     try {
-      // The server-side action now handles the fetching of 500 messages
       const analysis = await calculateOverallRomanceScore();
       setResult(analysis);
     } catch (error: any) {
@@ -97,7 +107,6 @@ export default function RomanceScorePage() {
 
           {result && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {/* Overall Relationship Score Card */}
               <Card className="overflow-hidden border-primary/20 bg-primary/5">
                 <CardHeader className="text-center pb-2">
                   <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-2">
@@ -142,7 +151,6 @@ export default function RomanceScorePage() {
                 </CardContent>
               </Card>
 
-              {/* Individual Sentiment Breakdown */}
               <div className="grid gap-6 md:grid-cols-2">
                 {result.userScores.map((userScore) => (
                   <Card key={userScore.username} className="relative overflow-hidden border-muted">
@@ -176,7 +184,6 @@ export default function RomanceScorePage() {
                 ))}
               </div>
 
-              {/* Connection Highlights */}
               <div className="grid gap-6 md:grid-cols-2">
                 <Card className="bg-card/50">
                   <CardHeader className="pb-2">

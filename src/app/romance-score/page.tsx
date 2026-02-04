@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2, ArrowLeft, Heart, Sparkles, TrendingUp, Info, User, Activity } from "lucide-react";
+import { Loader2, ArrowLeft, Heart, Sparkles, TrendingUp, Info, User, Activity, LogOut } from "lucide-react";
 import { calculateOverallRomanceScore, type AnalyzeRomanceOutput } from "@/ai/flows/analyze-romance";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
@@ -24,6 +24,12 @@ export default function RomanceScorePage() {
       setCurrentUser(user);
     }
   }, [router]);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("isAuthenticated");
+    sessionStorage.removeItem("currentUser");
+    router.replace("/");
+  };
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
@@ -54,6 +60,9 @@ export default function RomanceScorePage() {
           <span className="sr-only">Back</span>
         </Button>
         <h1 className="flex-1 text-xl font-semibold">The Love Lab</h1>
+        <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Logout">
+          <LogOut className="h-5 w-5" />
+        </Button>
       </header>
 
       <main className="flex-1 overflow-auto p-4 md:p-8">

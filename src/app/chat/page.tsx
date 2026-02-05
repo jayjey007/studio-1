@@ -210,7 +210,7 @@ export default function ChatPage() {
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     if (viewportRef.current) {
         viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
-        // Fallback for tricky browsers
+        // Forced re-adjustment for tricky rendering
         requestAnimationFrame(() => {
           if (viewportRef.current) {
             viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
@@ -219,7 +219,7 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Handle scroll position maintenance
+  // Optimized Scroll Position Maintenance
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -227,19 +227,20 @@ export default function ChatPage() {
     if (shouldScrollToBottomRef.current) {
         viewport.scrollTop = viewport.scrollHeight;
         shouldScrollToBottomRef.current = false;
-        // Second pass for mobile settlement
+        // Safety double-scroll for mobile browsers
         setTimeout(() => {
           if (viewportRef.current) viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
-        }, 100);
+        }, 50);
     } else if (prevScrollHeightRef.current > 0 && !atBottomRef.current) {
-        const diff = viewport.scrollHeight - prevScrollHeightRef.current;
-        if (diff > 0) {
-            viewport.scrollTop += diff;
+        const heightDifference = viewport.scrollHeight - prevScrollHeightRef.current;
+        if (heightDifference > 0) {
+            viewport.scrollTop += heightDifference;
         }
     }
     prevScrollHeightRef.current = viewport.scrollHeight;
   }, [messages]);
 
+  // Initial Data Fetch and subscription
   useEffect(() => {
     if (!messagesCollectionRef) return;
 
@@ -247,22 +248,30 @@ export default function ChatPage() {
     const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_PAGE_SIZE));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const newMessages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
+        const newBatch = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
         
-        setMessages(prevMessages => {
-          const messageMap = new Map(prevMessages.map(m => [m.id, m]));
-          newMessages.forEach(m => messageMap.set(m.id, m));
-          const updatedMessages = Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
-
-          const isInitialLoad = prevMessages.length === 0;
-          const lastMessage = updatedMessages[updatedMessages.length - 1];
-          const userSentMessage = lastMessage?.sender === currentUser && updatedMessages.length > prevMessages.length;
+        setMessages(prev => {
+          const isFirstFetch = prev.length === 0;
           
-          if (isInitialLoad || userSentMessage || atBottomRef.current) {
+          // Merge logic ensuring no duplicates and sorted chronologically
+          const messageMap = new Map(prev.map(m => [m.id, m]));
+          newBatch.forEach(m => messageMap.set(m.id, m));
+          const sorted = Array.from(messageMap.values()).sort((a, b) => 
+            (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)
+          );
+
+          // Scroll to bottom conditions:
+          // 1. Initial login load
+          // 2. User just sent a message (count increased and last message is ours)
+          // 3. Already at the bottom when new message arrives
+          const lastMsg = sorted[sorted.length - 1];
+          const userJustSent = lastMsg?.sender === currentUser && sorted.length > prev.length;
+          
+          if (isFirstFetch || userJustSent || atBottomRef.current) {
             shouldScrollToBottomRef.current = true;
           }
 
-          return updatedMessages;
+          return sorted;
         });
         
         if (querySnapshot.docs.length > 0 && !lastVisible) {
@@ -291,15 +300,18 @@ export default function ChatPage() {
 
       try {
           const documentSnapshots = await getDocs(q);
-          const newMessages = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
+          const oldMessages = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
           
           if (documentSnapshots.docs.length > 0) {
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            shouldScrollToBottomRef.current = false;
+            shouldScrollToBottomRef.current = false; // Don't snap to bottom when loading history
             
             setMessages(prev => {
-                const messageMap = new Map([...newMessages, ...prev].map(m => [m.id, m]));
-                return Array.from(messageMap.values()).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+                const combined = [...oldMessages, ...prev];
+                const messageMap = new Map(combined.map(m => [m.id, m]));
+                return Array.from(messageMap.values()).sort((a, b) => 
+                  (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)
+                );
             });
           }
           
@@ -533,7 +545,8 @@ export default function ChatPage() {
     const viewport = e.currentTarget;
     if (viewport) {
       const { scrollTop, scrollHeight, clientHeight } = viewport;
-      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 50;
+      // atBottom if within 100px of bottom
+      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 100;
       atBottomRef.current = isAtBottom;
     }
   };
@@ -618,7 +631,12 @@ export default function ChatPage() {
             </DropdownMenu>
           </div>
         <main className="flex-1 overflow-hidden relative">
-          <ScrollArea className="h-full" viewportRef={viewportRef} onScroll={handleScroll}>
+          <ScrollArea 
+            className="h-full" 
+            viewportRef={viewportRef} 
+            onScroll={handleScroll}
+            style={{ overflowAnchor: 'none' }} // Crucial for manual scroll management
+          >
              <div className="px-4 py-6 md:px-6 min-h-full flex flex-col justify-end">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
                   <div ref={topOfListRef} className="h-4 w-full flex justify-center">

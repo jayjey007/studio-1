@@ -210,12 +210,6 @@ export default function ChatPage() {
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     if (viewportRef.current) {
         viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
-        // Forced re-adjustment for tricky rendering
-        requestAnimationFrame(() => {
-          if (viewportRef.current) {
-            viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
-          }
-        });
     }
   }, []);
 
@@ -227,10 +221,10 @@ export default function ChatPage() {
     if (shouldScrollToBottomRef.current) {
         viewport.scrollTop = viewport.scrollHeight;
         shouldScrollToBottomRef.current = false;
-        // Safety double-scroll for mobile browsers
+        // Safari fallback for late rendering
         setTimeout(() => {
           if (viewportRef.current) viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
-        }, 50);
+        }, 100);
     } else if (prevScrollHeightRef.current > 0 && !atBottomRef.current) {
         const heightDifference = viewport.scrollHeight - prevScrollHeightRef.current;
         if (heightDifference > 0) {
@@ -253,17 +247,12 @@ export default function ChatPage() {
         setMessages(prev => {
           const isFirstFetch = prev.length === 0;
           
-          // Merge logic ensuring no duplicates and sorted chronologically
           const messageMap = new Map(prev.map(m => [m.id, m]));
           newBatch.forEach(m => messageMap.set(m.id, m));
           const sorted = Array.from(messageMap.values()).sort((a, b) => 
             (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)
           );
 
-          // Scroll to bottom conditions:
-          // 1. Initial login load
-          // 2. User just sent a message (count increased and last message is ours)
-          // 3. Already at the bottom when new message arrives
           const lastMsg = sorted[sorted.length - 1];
           const userJustSent = lastMsg?.sender === currentUser && sorted.length > prev.length;
           
@@ -304,7 +293,7 @@ export default function ChatPage() {
           
           if (documentSnapshots.docs.length > 0) {
             setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            shouldScrollToBottomRef.current = false; // Don't snap to bottom when loading history
+            shouldScrollToBottomRef.current = false;
             
             setMessages(prev => {
                 const combined = [...oldMessages, ...prev];
@@ -545,7 +534,6 @@ export default function ChatPage() {
     const viewport = e.currentTarget;
     if (viewport) {
       const { scrollTop, scrollHeight, clientHeight } = viewport;
-      // atBottom if within 100px of bottom
       const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 100;
       atBottomRef.current = isAtBottom;
     }
@@ -635,7 +623,7 @@ export default function ChatPage() {
             className="h-full" 
             viewportRef={viewportRef} 
             onScroll={handleScroll}
-            style={{ overflowAnchor: 'none' }} // Crucial for manual scroll management
+            style={{ overflowAnchor: 'none' }}
           >
              <div className="px-4 py-6 md:px-6 min-h-full flex flex-col justify-end">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>

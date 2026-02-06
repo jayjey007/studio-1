@@ -21,6 +21,7 @@ import { useFirebase, useMemoFirebase, setDocumentMergeNonBlocking, addDocumentN
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/app/actions/send-notification";
 import Link from "next/link";
+import { isAtBottom as isViewportAtBottom, shouldAutoScroll } from "./scroll-utils";
 
 const MESSAGE_PAGE_SIZE = 25;
 
@@ -192,6 +193,7 @@ export default function ChatPage() {
   const prevScrollHeightRef = useRef(0);
   const atBottomRef = useRef(true);
   const shouldScrollToBottomRef = useRef(true);
+  const pendingAnchorRef = useRef<{ id: string; offset: number } | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -213,6 +215,32 @@ export default function ChatPage() {
     }
   }, []);
 
+  const captureViewportAnchor = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return null;
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const messageElements = Array.from(
+      viewport.querySelectorAll<HTMLElement>("[data-message-id]")
+    );
+
+    let candidate: { id: string; offset: number } | null = null;
+    for (const element of messageElements) {
+      const rect = element.getBoundingClientRect();
+      if (rect.bottom <= viewportRect.top) continue;
+
+      const id = element.dataset.messageId;
+      if (!id) continue;
+
+      const offset = rect.top - viewportRect.top;
+      if (!candidate || offset < candidate.offset) {
+        candidate = { id, offset };
+      }
+    }
+
+    return candidate;
+  }, []);
+
   // Optimized Scroll Position Maintenance
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -225,13 +253,23 @@ export default function ChatPage() {
         setTimeout(() => {
           if (viewportRef.current) viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
         }, 100);
-    } else if (prevScrollHeightRef.current > 0 && !atBottomRef.current) {
-        const heightDifference = viewport.scrollHeight - prevScrollHeightRef.current;
-        if (heightDifference > 0) {
-            viewport.scrollTop += heightDifference;
+    } else if (pendingAnchorRef.current) {
+        const anchor = pendingAnchorRef.current;
+        const anchorElement = viewport.querySelector<HTMLElement>(`[data-message-id="${anchor.id}"]`);
+        if (anchorElement) {
+          const viewportRect = viewport.getBoundingClientRect();
+          const newOffset = anchorElement.getBoundingClientRect().top - viewportRect.top;
+          viewport.scrollTop += newOffset - anchor.offset;
+        } else if (prevScrollHeightRef.current > 0 && !atBottomRef.current) {
+          const heightDifference = viewport.scrollHeight - prevScrollHeightRef.current;
+          if (heightDifference > 0) {
+              viewport.scrollTop += heightDifference;
+          }
         }
+        pendingAnchorRef.current = null;
     }
     prevScrollHeightRef.current = viewport.scrollHeight;
+    atBottomRef.current = isViewportAtBottom(viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight);
   }, [messages]);
 
   // Initial Data Fetch and subscription
@@ -243,6 +281,13 @@ export default function ChatPage() {
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const newBatch = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
+        const wasAtBottom = viewportRef.current
+          ? isViewportAtBottom(
+              viewportRef.current.scrollTop,
+              viewportRef.current.scrollHeight,
+              viewportRef.current.clientHeight
+            )
+          : true;
         
         setMessages(prev => {
           const isFirstFetch = prev.length === 0;
@@ -252,13 +297,8 @@ export default function ChatPage() {
           const sorted = Array.from(messageMap.values()).sort((a, b) => 
             (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)
           );
-
-          const lastMsg = sorted[sorted.length - 1];
-          const userJustSent = lastMsg?.sender === currentUser && sorted.length > prev.length;
-          
-          if (isFirstFetch || userJustSent || atBottomRef.current) {
-            shouldScrollToBottomRef.current = true;
-          }
+          const shouldScroll = shouldAutoScroll(isFirstFetch, wasAtBottom);
+          if (shouldScroll) shouldScrollToBottomRef.current = true;
 
           return sorted;
         });
@@ -283,6 +323,7 @@ export default function ChatPage() {
       const viewport = viewportRef.current;
       if (viewport) {
           prevScrollHeightRef.current = viewport.scrollHeight;
+          pendingAnchorRef.current = captureViewportAnchor();
       }
       
       const q = query(messagesCollectionRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(MESSAGE_PAGE_SIZE));
@@ -415,7 +456,6 @@ export default function ChatPage() {
     if (!currentUser || !db || !storage || !currentUserObject) return;
 
     setIsSending(true);
-    shouldScrollToBottomRef.current = true;
 
     const recipientUser = ALL_USERS.find(u => u.username !== currentUser);
     if (!recipientUser) {
@@ -534,8 +574,7 @@ export default function ChatPage() {
     const viewport = e.currentTarget;
     if (viewport) {
       const { scrollTop, scrollHeight, clientHeight } = viewport;
-      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 100;
-      atBottomRef.current = isAtBottom;
+      atBottomRef.current = isViewportAtBottom(scrollTop, scrollHeight, clientHeight);
     }
   };
 
@@ -623,7 +662,7 @@ export default function ChatPage() {
             className="h-full" 
             viewportRef={viewportRef} 
             onScroll={handleScroll}
-            style={{ overflowAnchor: 'none' }}
+            viewportStyle={{ overflowAnchor: "none", scrollBehavior: "auto" }}
           >
              <div className="px-4 py-6 md:px-6 min-h-full flex flex-col justify-end">
                 <div className="space-y-4" onClick={() => selectedMessageId && setSelectedMessageId(null)}>
@@ -631,7 +670,12 @@ export default function ChatPage() {
                     {hasMore && !isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground opacity-30" />}
                   </div>
                   {messages.map((message) => (
-                    <div key={message.id} id={message.id} className={cn("flex w-full", message.sender === currentUser ? "justify-end" : "justify-start")}>
+                    <div
+                      key={message.id}
+                      id={message.id}
+                      data-message-id={message.id}
+                      className={cn("flex w-full", message.sender === currentUser ? "justify-end" : "justify-start")}
+                    >
                       <div className="max-w-[85%] group">
                         <Popover open={selectedMessageId === message.id} onOpenChange={(isOpen) => { if (!isOpen) setSelectedMessageId(null); }}>
                           <PopoverTrigger asChild>
